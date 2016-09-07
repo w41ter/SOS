@@ -12,7 +12,7 @@ SECTION MBR vstart=0x7c00
 
     mov eax, loader_start_sector
     mov bx, loader_base_address
-    mov cx, 1
+    mov cx, 4
     call read_disk_m_16
 
     jmp loader_base_address

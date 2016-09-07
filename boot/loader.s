@@ -1,21 +1,60 @@
 %include "boot.inc"
+
+loader_stack_top equ loader_base_address
+
 section loader vstart=loader_base_address
-    mov byte [gs:0x00], 'L'
-    mov byte [gs:0x01], 0xa4
+    jmp loader_start
 
-    mov byte [gs:0x02], 'o'
-    mov byte [gs:0x03], 0xa4
+gdt_base:   dd 0x00000000
+            dd 0x00000000
+code_desc:  dd 0x0000ffff
+            dd desc_code_high4
+data_stack_desc: dd 0x0000ffff
+                 dd desc_data_high4
+video_desc: dd 0x80000007
+            dd desc_video_high4
 
-    mov byte [gs:0x04], 'a'
-    mov byte [gs:0x05], 0xa4
+gdt_size equ $ - gdt_base
+gdt_limit equ gdt_size - 1
 
-    mov byte [gs:0x06], 'd'
-    mov byte [gs:0x07], 0xa4
+times 60 dq 0
 
-    mov byte [gs:0x08], 'e'
-    mov byte [gs:0x09], 0xa4
+selector_code equ (0x001 << 3) + TI_GDT + RPL0
+selector_data equ (0x002 << 3) + TI_GDT + RPL0
+selector_video equ (0x003 << 3) + TI_GDT + RPL0
 
-    mov byte [gs:0x0a], 'r'
-    mov byte [gs:0x0b], 0xa4
+gdt_ptr  dw gdt_limit
+         dd gdt_base
 
-    jmp $
+loader_start:
+    ; open A20
+    in al, 0x92
+    or al, 0x02
+    out 0x92, al
+
+    ; load gdt
+    lgdt [gdt_ptr]
+
+    ; cr0 
+    mov eax, cr0
+    or eax, 0x0001
+    mov cr0, eax
+
+    ; clear cache
+    jmp dword selector_code: p_mode_start
+
+[bits 32]
+p_mode_start:
+    mov ax, selector_data
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov esp, loader_stack_top
+    mov ax, selector_video
+    mov gs, ax
+
+    mov byte [gs:160], 'P'
+
+loop:
+    nop
+    jmp loop
