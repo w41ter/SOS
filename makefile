@@ -41,7 +41,9 @@ OBJECTS = \
 	debug.o\
 	main.o\
 	string.o\
-
+	trap.o\
+	trapasm.o\
+	vectors.o\
 		  
 
 disk.img: bootblock kernel
@@ -62,6 +64,9 @@ kernel: $(OBJECTS) entry.o kernel.ld
 	$(OBJDUMP) -S kernel > kernel.asm
 	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
 
+vectors.S: vectors.pl
+	perl vectors.pl > vectors.S
+
 %.d: %.c
 	$(CC) -MM $<
 
@@ -70,7 +75,7 @@ kernel: $(OBJECTS) entry.o kernel.ld
 .PHONY: clean
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
-	*.o *.d *.asm *.sym bootblock kernel disk.img \
+	*.o *.d *.asm *.sym vectors.S bootblock kernel disk.img \
 	.gdbinit \
 
 

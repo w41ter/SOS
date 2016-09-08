@@ -4,18 +4,23 @@
 #include "flags.h"
 #include "memlayout.h"
 #include "param.h"
+#include "x86.h"
 
 typedef uint32_t pde_t;
 pde_t entrypgdir[];  // For entry.S
 
+extern void idt_init(void);
+
 int main(void) 
 {
     console_clear();
-    printk("Begin init kernel...");
+    printk("Begin init kernel...\n");
 
+    idt_init();
+
+    sti();
     print_current_status();
-    panic("test panic");
-
+    //panic("test panic");
     while (1);
     return 0;
 }

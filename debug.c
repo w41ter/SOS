@@ -46,6 +46,8 @@ static const char *elf_lookup_symbol(uint32_t addr, elf_t *elf);
 
 void panic(const char *msg)
 {
+    cli();
+    
 	printk("*** System panic: %s\n", msg);
 	print_stack_trace();
 	printk("***\n");
