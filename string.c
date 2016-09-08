@@ -13,7 +13,8 @@ void memcpy(void *dest, void *src, uint32_t len)
 
 void memset(void *dest, uint8_t val, uint32_t len)
 {
-    for (uint8_t *dst = (uint8_t *)dest; len != 0; len--) {
+    uint8_t *dst = (uint8_t *)dest;
+    for (; len != 0; len--) {
         *dst++ = val;
     }
 }

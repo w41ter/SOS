@@ -1,4 +1,5 @@
 #include "console.h"
+#include "debug.h"
 #include "types.h"
 #include "flags.h"
 #include "memlayout.h"
@@ -11,6 +12,9 @@ int main(void)
 {
     console_clear();
     printk("Begin init kernel...");
+
+    print_current_status();
+    panic("test panic");
 
     while (1);
     return 0;

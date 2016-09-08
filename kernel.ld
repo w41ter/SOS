@@ -35,6 +35,18 @@ SECTIONS
 				   for this section */
 	}
 
+	.symtab : {
+		PROVIDE(__SYMTAB_BEGIN__ = .);
+		*(.symtab);
+		PROVIDE(__SYMTAB_END__ = .);
+	}
+
+	.strtab : {
+		PROVIDE(__STRTAB_BEGIN__ = .);
+		*(.strtab);
+		PROVIDE(__STRTAB_END__ = .);
+	}
+
 	/* Adjust the address for the data segment to the next page */
 	. = ALIGN(0x1000);
 
