@@ -29,21 +29,49 @@ AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
-CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
+CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -std=c99
+#CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -fvar-tracking -fvar-tracking-assignments -O0 -g -Wall -MD -gdwarf-2 -m32 -Werror -fno-omit-frame-pointer -std=c99
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''
 LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
 
-main: disk.img
+OBJECTS = \
+	console.o\
+	main.o\
+	string.o\
 
-target/mbr.bin, target/loader.bin: boot/mbr.s boot/loader.s
-	nasm -I boot/ -o target/mbr.bin boot/mbr.s
-	nasm -I boot/ -o target/loader.bin boot/loader.s
+		  
 
-disk.img: target/mbr.bin, target/loader.bin
-	dd if=target/mbr.bin of=disk.img bs=512 count=1 conv=notrunc
-	dd if=target/loader.bin of=disk.img bs=512 count=1 seek=2 conv=notrunc
+disk.img: bootblock kernel
+	dd if=/dev/zero of=disk.img bs=512 count=10000
+	dd if=bootblock of=disk.img bs=512 count=1 conv=notrunc
+	dd if=kernel of=disk.img bs=512 count=2000 seek=1 conv=notrunc
+
+bootblock: bootasm.S bootmain.c
+	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c bootmain.c
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c bootasm.S
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o bootblock.o bootasm.o bootmain.o
+	$(OBJDUMP) -S bootblock.o > bootblock.asm
+	$(OBJCOPY) -S -O binary -j .text bootblock.o bootblock
+	./sign.pl bootblock
+
+kernel: $(OBJECTS) entry.o kernel.ld
+	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJECTS)
+	$(OBJDUMP) -S kernel > kernel.asm
+	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
+
+%.d: %.c
+	$(CC) -MM $<
+
+-include *.d
+
+.PHONY: clean
+clean: 
+	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+	*.o *.d *.asm *.sym bootblock kernel disk.img \
+	.gdbinit \
+
 
 # try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)
