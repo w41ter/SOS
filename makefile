@@ -40,7 +40,9 @@ OBJECTS = \
 	console.o\
 	debug.o\
 	main.o\
+	picirq.o\
 	string.o\
+	timer.o\
 	trap.o\
 	trapasm.o\
 	vectors.o\
@@ -78,6 +80,11 @@ clean:
 	*.o *.d *.asm *.sym vectors.S bootblock kernel disk.img \
 	.gdbinit \
 
+# run in emulators
+
+bochs : disk.img
+	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
+	bochs -q
 
 # try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)

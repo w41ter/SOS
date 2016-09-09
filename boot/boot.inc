@@ -1,6 +1,9 @@
 ; loader and kernel
 loader_base_address equ 0x900
 loader_start_sector equ 0x2
+kernel_start_sector equ 0x9
+kernel_bin_base_address equ 0x70000
+kernel_entey_point  equ 0xc0001500
 
 ; gdt descriptor
 desc_g_4k        equ 0x800000   ; 1000_0000_0000_0000_0000_0000b
@@ -51,3 +54,13 @@ RPL3 equ 11b;
 
 TI_GDT equ 000b
 TI_LDT equ 100b
+
+page_dir_table_base equ 0x100000
+
+PG_P equ 1b
+PG_RW_R equ 00b
+PG_RW_W equ 10b
+PG_US_S equ 000b
+PG_US_U equ 100b
+
+PT_NULL equ 0

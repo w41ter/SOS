@@ -9,17 +9,25 @@
 typedef uint32_t pde_t;
 pde_t entrypgdir[];  // For entry.S
 
-extern void idt_init(void);
+void pic_init(void);
+void idt_init(void);
+void timer_init(void);
+void trap_vector_init(void);
 
 int main(void) 
 {
     console_clear();
     printk("Begin init kernel...\n");
 
+    pic_init();
+    trap_vector_init();
     idt_init();
 
+    timer_init();
+
     sti();
-    print_current_status();
+
+    //print_current_status();
     //panic("test panic");
     while (1);
     return 0;
