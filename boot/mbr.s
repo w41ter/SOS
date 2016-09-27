@@ -15,7 +15,7 @@ SECTION MBR vstart=0x7c00
     mov cx, 4
     call read_disk_m_16
 
-    jmp loader_base_address
+    jmp loader_base_address + 0x300
 
 read_disk_m_16:
     mov esi, eax
