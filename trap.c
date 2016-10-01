@@ -1,4 +1,5 @@
 #include "console.h"
+#include "debug.h"
 #include "flags.h"
 #include "traps.h"
 #include "types.h"
@@ -58,6 +59,7 @@ void idt_init()
 void trap(struct trap_frame *tf)
 {
 	printk("vector: %d\n", tf->trapno);
+    assert(tf->trapno != T_PGFLT);
 
 // 	if(tf->trapno == T_SYSCALL){
 // 		// if(proc->killed)

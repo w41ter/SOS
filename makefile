@@ -37,15 +37,18 @@ ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
 
 OBJECTS = \
+	bitmap.o\
 	console.o\
 	debug.o\
 	main.o\
+	memory.o\
 	picirq.o\
 	string.o\
 	timer.o\
 	trap.o\
 	trapasm.o\
 	vectors.o\
+	vm.o\
 		  
 
 disk.img: bootblock kernel
@@ -53,7 +56,7 @@ disk.img: bootblock kernel
 	dd if=bootblock of=disk.img bs=512 count=1 conv=notrunc
 	dd if=kernel of=disk.img bs=512 count=2000 seek=1 conv=notrunc
 
-bootblock: bootasm.S bootmain.c
+bootblock: bootasm.S bootmain.c 
 	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c bootmain.c
 	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c bootasm.S
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o bootblock.o bootasm.o bootmain.o

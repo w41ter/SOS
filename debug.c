@@ -1,5 +1,6 @@
 #include "console.h"
 #include "debug.h"
+#include "flags.h"
 #include "types.h"
 #include "x86.h"
 
@@ -46,7 +47,8 @@ static const char *elf_lookup_symbol(uint32_t addr, elf_t *elf);
 
 void panic(const char *msg)
 {
-    cli();
+    if(readeflags() & FL_IF)
+		cli();
     
 	printk("*** System panic: %s\n", msg);
 	print_stack_trace();
