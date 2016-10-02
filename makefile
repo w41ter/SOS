@@ -40,8 +40,10 @@ OBJECTS = \
 	bitmap.o\
 	console.o\
 	debug.o\
+	lapic.o\
 	main.o\
 	memory.o\
+	mp.o\
 	picirq.o\
 	string.o\
 	timer.o\
@@ -64,8 +66,14 @@ bootblock: bootasm.S bootmain.c
 	$(OBJCOPY) -S -O binary -j .text bootblock.o bootblock
 	./sign.pl bootblock
 
-kernel: $(OBJECTS) entry.o kernel.ld
-	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJECTS)
+entryother: entryother.S
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c entryother.S
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o bootblockother.o entryother.o
+	$(OBJCOPY) -S -O binary -j .text bootblockother.o entryother
+	$(OBJDUMP) -S bootblockother.o > entryother.asm
+
+kernel: $(OBJECTS) entry.o entryother kernel.ld
+	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJECTS)  -b binary entryother
 	$(OBJDUMP) -S kernel > kernel.asm
 	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
 
@@ -81,7 +89,7 @@ vectors.S: vectors.pl
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*.o *.d *.asm *.sym vectors.S bootblock kernel disk.img \
-	.gdbinit \
+	.gdbinit entryother \
 
 # run in emulators
 

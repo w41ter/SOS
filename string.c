@@ -1,14 +1,47 @@
 #include "types.h"
 
-void memcpy(void *dest, void *src, uint32_t len)
-{
-    uint8_t *sr = src;
-    uint8_t *dst = dest;
+int memcmp(const void * buf1, const void * buf2, uint32_t count) 
+{ 
+    if (!count) 
+        return(0); 
+ 
+    while (--count && *(char *)buf1 == *(char *)buf2) { 
+        buf1 = (char *)buf1 + 1; 
+        buf2 = (char *)buf2 + 1; 
+    } 
+ 
+    return(*((unsigned char *)buf1) - *((unsigned char *)buf2));
+} 
 
-    while (len != 0) {
-        *dst++ = *sr++;
-        len--;
+void *memcpy(void *dest, const void *src, uint32_t count)
+{
+    char *tmp = dest;
+    const char *s = src;
+    while (count--)
+        *tmp++ = *s++;
+    return dest;
+}
+
+void *memmove(void *dest, const void *src, uint32_t count)
+{
+    char *tmp;
+    const char *s;
+
+    if (dest <= src) {
+        tmp = dest;
+        s = src;
+        while (count--)
+        *tmp++ = *s++;
+    } 
+    else {
+        tmp = dest;
+        tmp += count;
+        s = src;
+        s += count;
+        while (count--)
+        *--tmp = *--s;
     }
+    return dest;
 }
 
 void memset(void *dest, uint8_t val, uint32_t len)

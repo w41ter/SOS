@@ -1,4 +1,5 @@
 #include "asm.h"
+#include "segment.h"
 #include "flags.h"
 
 # Start the first CPU: switch to 32-bit protected mode, jump into C.

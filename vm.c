@@ -15,8 +15,8 @@ struct virtual_addr kvm;
 
 // 内核页目录区域
 pde_t kernel_pde[NPDENTRIES] __attribute__ ((aligned(PAGE_SIZE)));
-// 内核 0-4M 页表区域
-pte_t init_pte[NPTENTRIES] __attribute__((aligned(PAGE_SIZE)));
+// 内核 0-4M 页表区域以及设备区域 8 个
+pte_t init_pte[9][NPTENTRIES] __attribute__((aligned(PAGE_SIZE)));
 
 static void map_inner(pde_t *pde, uint32_t va, 
     uint32_t pa, uint32_t flags)
@@ -24,6 +24,7 @@ static void map_inner(pde_t *pde, uint32_t va,
     uint32_t pde_idx = PDX(va);
     uint32_t pte_idx = PTX(va); 
     
+        //printk("0x%0x8\n", va);
     pte_t *pte = (pte_t *)pde[pde_idx];
     if (!((uint32_t)pte & PTE_P)) {
         assert(0);
@@ -47,10 +48,10 @@ static void map_range(pde_t *pde, uint32_t va,
 {
     uint32_t a, last;
     a = PGROUNDDOWN(va);
-    last =PGROUNDDOWN(va + size - 1);
+    last = PGROUNDDOWN(va + size - 1);
     while (1) {
         map_inner(pde, a, pa, flags);
-        if (a == last)
+        if (a >= last)
             break;
         a += PAGE_SIZE;
         pa += PAGE_SIZE;
@@ -65,18 +66,28 @@ void switch_kpde(void)
 void kpde_init(void)
 {
     // 低 4M 已经在临时页表中映射，这里也要把这 4M 映射。
-    kernel_pde[0] = (uint32_t)V2P(init_pte) | PTE_P | PTE_W;
+    kernel_pde[0] = (uint32_t)V2P(init_pte[0]) | PTE_P | PTE_W;
     kernel_pde[PDX(KERNEL_BASE)] =
-        (uint32_t)V2P(init_pte) | PTE_P | PTE_W;
+        (uint32_t)V2P(init_pte[0]) | PTE_P | PTE_W;
+
+    // 为设备准备页表
+    uint32_t devspace = DEVSPACE;
+    int i = 1;
+    for (; i < 9; ++i) {
+        kernel_pde[PDX(devspace)] = 
+            (uint32_t)V2P(init_pte[i]) | PTE_P | PTE_W;
+        devspace += 1024 * PAGE_SIZE;
+    }
+    // FIXME: 自映射覆盖了设备空间最后一页
     // 自映射
-    kernel_pde[1023] = (uint32_t)V2P(kernel_pde) | PTE_P | PTE_W;
+    // kernel_pde[1023] = (uint32_t)V2P(kernel_pde) | PTE_P | PTE_W;
 
     map_range(kernel_pde, KERNEL_BASE, 0, EXTMEM, PTE_W);
     map_range(kernel_pde, KERNEL_LINK, V2P(KERNEL_LINK), 
         V2P(data) - V2P(KERNEL_LINK), 0);
     map_range(kernel_pde, (uint32_t)data, V2P(data), 
         V2P(KERNEL_HEAP_START) - V2P(data), PTE_W);
-    
+    map_range(kernel_pde, DEVSPACE, DEVSPACE, 0 - DEVSPACE, PTE_W);
     test_pde(kernel_pde, 1);
     switch_kpde();
 }
