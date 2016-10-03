@@ -21,7 +21,11 @@ void lapicinit(void);
 void pic_init(void);
 void idt_init(void);
 void timer_init(void);
+void ioapic_init(void);
 void trap_vector_init(void);
+
+//__attribute__((noreturn))
+static void mpmain(void);
 static void startothers(void);
 
 int main(void) 
@@ -37,21 +41,25 @@ int main(void)
     seginit();
 
     pic_init();
+    ioapic_init();
+    console_init();
     trap_vector_init();
-    idt_init();
 
     if(!ismp)
        timer_init();   // uniprocessor timer
     startothers();   // start other processors
-    timer_init();
+    //timer_init();
 
-    //sti();
+    // sti();
 
     uint32_t test = kalloc_pages(3);
     printk("virtual address of test is: 0x%08x\n", test);
     //test_pde(kernel_pde, 1);
     //print_current_status();
     //panic("test panic");
+
+    //mpmain();
+
     while (1);
     return 0;
 }

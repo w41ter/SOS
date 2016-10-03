@@ -40,12 +40,14 @@ OBJECTS = \
 	bitmap.o\
 	console.o\
 	debug.o\
+	ioapic.o\
 	lapic.o\
 	main.o\
 	memory.o\
 	mp.o\
 	picirq.o\
 	string.o\
+	spinlock.o\
 	timer.o\
 	trap.o\
 	trapasm.o\

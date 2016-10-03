@@ -1,9 +1,21 @@
 #include "console.h"
+#include "memlayout.h"
+#include "traps.h"
 #include "string.h"
+#include "spinlock.h"
 #include "x86.h"
 
+int panicked = 0;
+
+static struct {
+  struct spinlock lock;
+  int locking;
+} cons_lock;
+
+#define BACKSPACE 0x100
+
 // VGA 的显示缓冲的起点是 0xB8000
-static uint16_t *video_memory = (uint16_t *)0xB8000;
+static uint16_t *video_memory = (uint16_t *)(KERNEL_BASE + 0xB8000);
 
 // 屏幕"光标"的坐标
 static uint8_t cursor_x = 0;
@@ -28,7 +40,11 @@ void console_clear()
     uint8_t attribute_byte = (0 << 4) | (15 & 0x0F);
     uint16_t blank = 0x20 | (attribute_byte << 8);
 
-    int i;
+    int i, locking = cons_lock.locking;
+	
+	if (locking)
+		acquire(&cons_lock.lock);
+
     for (i = 0; i < 80 * 25; i++) {
           video_memory[i] = blank;
     }
@@ -36,6 +52,9 @@ void console_clear()
     cursor_x = 0;
     cursor_y = 0;
     move_cursor();
+
+	if (locking)
+		release(&cons_lock.lock);
 }
 
 static void scroll()
@@ -63,7 +82,8 @@ static void scroll()
     }
 }
 
-void console_putc_color(char c, real_color_t back, real_color_t fore)
+static void console_putc_color(char c, 
+	real_color_t back, real_color_t fore)
 {
     uint8_t back_color = (uint8_t)back;
     uint8_t fore_color = (uint8_t)fore;
@@ -100,14 +120,14 @@ void console_putc_color(char c, real_color_t back, real_color_t fore)
     move_cursor();
 }
 
-void console_write(const char *cstr)
+static void console_write(const char *cstr)
 {
     while (*cstr) {
           console_putc_color(*cstr++, rc_black, rc_white);
     }
 }
 
-void console_write_color(
+static void console_write_color(
     const char *cstr, real_color_t back, real_color_t fore)
 {
     while (*cstr) {
@@ -122,7 +142,10 @@ void printk(const char *format, ...)
 	// 避免频繁创建临时变量，内核的栈很宝贵
 	static char buff[10240];
 	va_list args;
-	int i;
+	int i, locking = cons_lock.locking;
+
+	if (locking)
+		acquire(&cons_lock.lock);
 
 	va_start(args, format);
 	i = vsprintf(buff, format, args);
@@ -131,6 +154,9 @@ void printk(const char *format, ...)
 	buff[i] = '\0';
 
 	console_write(buff);
+
+	if (locking)
+		release(&cons_lock.lock);
 }
 
 void cprintk(
@@ -141,7 +167,10 @@ void cprintk(
 	// 避免频繁创建临时变量，内核的栈很宝贵
 	static char buff[10240];
 	va_list args;
-	int i;
+	int i, locking = cons_lock.locking;
+
+	if (locking)
+		acquire(&cons_lock.lock);
 
 	va_start(args, format);
 	i = vsprintf(buff, format, args);
@@ -150,6 +179,9 @@ void cprintk(
 	buff[i] = '\0';
 
 	console_write_color(buff, background, frontground);
+	
+	if (locking)
+		release(&cons_lock.lock);
 }
 
 #define is_digit(c)     ((c) >= '0' && (c) <= '9')
@@ -417,4 +449,243 @@ static int vsprintf(char *buff, const char *format, va_list args)
 	*str = '\0';
 
 	return (str -buff);
+}
+
+void pic_enable(int irq);
+void ioapic_enable(int irq, int cpunum);
+
+void console_init()
+{
+	init_lock(&cons_lock.lock, "console");
+
+	cons_lock.locking = 1;
+
+	pic_enable(IRQ_KBD);
+	ioapic_enable(IRQ_KBD, 0);
+}
+
+void consputc(int c)
+{
+	if(panicked){
+		cli();
+		for(;;)
+		;
+	}
+
+	// if(c == BACKSPACE){
+	// 	uartputc('\b'); uartputc(' '); uartputc('\b');
+	// } else
+	// 	uartputc(c);
+	// cgaputc(c);
+	console_putc_color(c, rc_black, rc_white);
+}
+
+// PC keyboard interface constants
+
+#define KBSTATP         0x64    // kbd controller status port(I)
+#define KBS_DIB         0x01    // kbd data in buffer
+#define KBDATAP         0x60    // kbd data port(I)
+
+#define NO              0
+
+#define SHIFT           (1<<0)
+#define CTL             (1<<1)
+#define ALT             (1<<2)
+
+#define CAPSLOCK        (1<<3)
+#define NUMLOCK         (1<<4)
+#define SCROLLLOCK      (1<<5)
+
+#define E0ESC           (1<<6)
+
+// Special keycodes
+#define KEY_HOME        0xE0
+#define KEY_END         0xE1
+#define KEY_UP          0xE2
+#define KEY_DN          0xE3
+#define KEY_LF          0xE4
+#define KEY_RT          0xE5
+#define KEY_PGUP        0xE6
+#define KEY_PGDN        0xE7
+#define KEY_INS         0xE8
+#define KEY_DEL         0xE9
+
+// C('A') == Control-A
+#define C(x) (x - '@')
+
+static uint8_t shiftcode[256] =
+{
+	[0x1D] CTL,
+	[0x2A] SHIFT,
+	[0x36] SHIFT,
+	[0x38] ALT,
+	[0x9D] CTL,
+	[0xB8] ALT
+};
+
+static uint8_t togglecode[256] =
+{
+	[0x3A] CAPSLOCK,
+	[0x45] NUMLOCK,
+	[0x46] SCROLLLOCK
+};
+
+static uint8_t normalmap[256] =
+{
+	NO,   0x1B, '1',  '2',  '3',  '4',  '5',  '6',  // 0x00
+	'7',  '8',  '9',  '0',  '-',  '=',  '\b', '\t',
+	'q',  'w',  'e',  'r',  't',  'y',  'u',  'i',  // 0x10
+	'o',  'p',  '[',  ']',  '\n', NO,   'a',  's',
+	'd',  'f',  'g',  'h',  'j',  'k',  'l',  ';',  // 0x20
+	'\'', '`',  NO,   '\\', 'z',  'x',  'c',  'v',
+	'b',  'n',  'm',  ',',  '.',  '/',  NO,   '*',  // 0x30
+	NO,   ' ',  NO,   NO,   NO,   NO,   NO,   NO,
+	NO,   NO,   NO,   NO,   NO,   NO,   NO,   '7',  // 0x40
+	'8',  '9',  '-',  '4',  '5',  '6',  '+',  '1',
+	'2',  '3',  '0',  '.',  NO,   NO,   NO,   NO,   // 0x50
+	[0x9C] '\n',      // KP_Enter
+	[0xB5] '/',       // KP_Div
+	[0xC8] KEY_UP,    [0xD0] KEY_DN,
+	[0xC9] KEY_PGUP,  [0xD1] KEY_PGDN,
+	[0xCB] KEY_LF,    [0xCD] KEY_RT,
+	[0x97] KEY_HOME,  [0xCF] KEY_END,
+	[0xD2] KEY_INS,   [0xD3] KEY_DEL
+};
+
+static uint8_t shiftmap[256] =
+{
+	NO,   033,  '!',  '@',  '#',  '$',  '%',  '^',  // 0x00
+	'&',  '*',  '(',  ')',  '_',  '+',  '\b', '\t',
+	'Q',  'W',  'E',  'R',  'T',  'Y',  'U',  'I',  // 0x10
+	'O',  'P',  '{',  '}',  '\n', NO,   'A',  'S',
+	'D',  'F',  'G',  'H',  'J',  'K',  'L',  ':',  // 0x20
+	'"',  '~',  NO,   '|',  'Z',  'X',  'C',  'V',
+	'B',  'N',  'M',  '<',  '>',  '?',  NO,   '*',  // 0x30
+	NO,   ' ',  NO,   NO,   NO,   NO,   NO,   NO,
+	NO,   NO,   NO,   NO,   NO,   NO,   NO,   '7',  // 0x40
+	'8',  '9',  '-',  '4',  '5',  '6',  '+',  '1',
+	'2',  '3',  '0',  '.',  NO,   NO,   NO,   NO,   // 0x50
+	[0x9C] '\n',      // KP_Enter
+	[0xB5] '/',       // KP_Div
+	[0xC8] KEY_UP,    [0xD0] KEY_DN,
+	[0xC9] KEY_PGUP,  [0xD1] KEY_PGDN,
+	[0xCB] KEY_LF,    [0xCD] KEY_RT,
+	[0x97] KEY_HOME,  [0xCF] KEY_END,
+	[0xD2] KEY_INS,   [0xD3] KEY_DEL
+};
+
+static uint8_t ctlmap[256] =
+{
+	NO,      NO,      NO,      NO,      NO,      NO,      NO,      NO,
+	NO,      NO,      NO,      NO,      NO,      NO,      NO,      NO,
+	C('Q'),  C('W'),  C('E'),  C('R'),  C('T'),  C('Y'),  C('U'),  C('I'),
+	C('O'),  C('P'),  NO,      NO,      '\r',    NO,      C('A'),  C('S'),
+	C('D'),  C('F'),  C('G'),  C('H'),  C('J'),  C('K'),  C('L'),  NO,
+	NO,      NO,      NO,      C('\\'), C('Z'),  C('X'),  C('C'),  C('V'),
+	C('B'),  C('N'),  C('M'),  NO,      NO,      C('/'),  NO,      NO,
+	[0x9C] '\r',      // KP_Enter
+	[0xB5] C('/'),    // KP_Div
+	[0xC8] KEY_UP,    [0xD0] KEY_DN,
+	[0xC9] KEY_PGUP,  [0xD1] KEY_PGDN,
+	[0xCB] KEY_LF,    [0xCD] KEY_RT,
+	[0x97] KEY_HOME,  [0xCF] KEY_END,
+	[0xD2] KEY_INS,   [0xD3] KEY_DEL
+};
+
+
+#define INPUT_BUF 128
+struct {
+  char buf[INPUT_BUF];
+  uint32_t r;  // Read index
+  uint32_t w;  // Write index
+  uint32_t e;  // Edit index
+} input;
+
+void console_intr(int (*getc)(void))
+{
+	int c;//, doprocdump = 0;
+
+	acquire(&cons_lock.lock);
+	while ((c = getc()) >= 0) {
+		switch(c) {
+		// case C('P'):  // Process listing.
+		// doprocdump = 1;   // procdump() locks cons_lock.lock indirectly; invoke later
+		// break;
+		case C('U'):  // Kill line.
+		while (input.e != input.w &&
+				input.buf[(input.e-1) % INPUT_BUF] != '\n') {
+			input.e--;
+			consputc(BACKSPACE);
+		}
+		break;
+		case C('H'): case '\x7f':  // Backspace
+		if (input.e != input.w){
+			input.e--;
+			consputc(BACKSPACE);
+		}
+		break;
+		default:
+		if (c != 0 && input.e-input.r < INPUT_BUF) {
+			c = (c == '\r') ? '\n' : c;
+			input.buf[input.e++ % INPUT_BUF] = c;
+			consputc(c);
+			if (c == '\n' || c == C('D') 
+				|| input.e == input.r+INPUT_BUF) {
+				input.w = input.e;
+				//wakeup(&input.r);
+			}
+		}
+		break;
+		}
+	}
+	release(&cons_lock.lock);
+	// if(doprocdump) {
+	// 	procdump();  // now call procdump() wo. cons_lock.lock held
+	// }
+}
+
+static int kbd_getc(void)
+{
+	static uint32_t shift;
+	static uint8_t *charcode[4] = {
+		normalmap, shiftmap, ctlmap, ctlmap
+	};
+	uint32_t st, data, c;
+
+	st = inb(KBSTATP);
+	if((st & KBS_DIB) == 0)
+		return -1;
+	data = inb(KBDATAP);
+
+	if(data == 0xE0){
+		shift |= E0ESC;
+		return 0;
+	} 
+	else if(data & 0x80) {
+		// Key released
+		data = (shift & E0ESC ? data : data & 0x7F);
+		shift &= ~(shiftcode[data] | E0ESC);
+		return 0;
+	} 
+	else if(shift & E0ESC) {
+		// Last character was an E0 escape; or with 0x80
+		data |= 0x80;
+		shift &= ~E0ESC;
+	}
+
+	shift |= shiftcode[data];
+	shift ^= togglecode[data];
+	c = charcode[shift & (CTL | SHIFT)][data];
+	if(shift & CAPSLOCK){
+		if('a' <= c && c <= 'z')
+		c += 'A' - 'a';
+		else if('A' <= c && c <= 'Z')
+		c += 'a' - 'A';
+	}
+	return c;
+}
+
+void kbd_intr(void)
+{
+	console_intr(kbd_getc);
 }

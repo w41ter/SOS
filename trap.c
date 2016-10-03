@@ -5,6 +5,7 @@
 #include "types.h"
 #include "proc.h"
 #include "segment.h"
+#include "spinlock.h"
 #include "x86.h"
 
 #define IDT_DESC_CNT 0xff
@@ -32,9 +33,12 @@ typedef struct gate_desc {
 
 extern void trap_ret(void);
 extern void lapiceoi(void);
+extern void kbd_intr(void);
 
 static gate_desc idt[IDT_DESC_CNT];
 extern intr_handler vectors[];
+struct spinlock tickslock;
+uint32_t ticks;
 
 static void make_trap_vector(
     gate_desc *desc, uint8_t attr, intr_handler func)
@@ -52,6 +56,8 @@ void trap_vector_init(void)
     for (i = 0; i < IDT_DESC_CNT; ++i) {
         make_trap_vector(&idt[i], IDT_DESC_ATTR_DPL0, vectors[i]);
     }
+
+	init_lock(&tickslock, "ticks");
 }
 
 void idt_init() 
@@ -76,13 +82,13 @@ void trap(struct trap_frame *tf)
 
 	switch(tf->trapno){
 	case T_IRQ0 + IRQ_TIMER:
-		// if(cpu->id == 0){
-		//   acquire(&tickslock);
-		//   ticks++;
-		//   wakeup(&ticks);
-		//   release(&tickslock);
-		// }
-		// lapiceoi();
+		if(cpu->id == 0){
+		  acquire(&tickslock);
+		  ticks++;
+		  //wakeup(&ticks);
+		  release(&tickslock);
+		}
+		lapiceoi();
 		break;
 	case T_IRQ0 + IRQ_IDE:
 		//ideintr();
@@ -92,7 +98,7 @@ void trap(struct trap_frame *tf)
 		// Bochs generates spurious IDE1 interrupts.
 		break;
 	case T_IRQ0 + IRQ_KBD:
-		//kbdintr();
+		kbd_intr();
 		lapiceoi();
 		break;
 	case T_IRQ0 + IRQ_COM1:

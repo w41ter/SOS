@@ -42,6 +42,7 @@ extern char __SYMTAB_BEGIN__[];
 extern char __SYMTAB_END__[];
 extern char __STRTAB_BEGIN__[];
 extern char __STRTAB_END__[];
+extern int panicked;		// console.c
 
 static const char *elf_lookup_symbol(uint32_t addr, elf_t *elf);
 
@@ -55,6 +56,7 @@ void panic(const char *msg)
 	printk("***\n");
 	
 	// 致命错误发生后打印栈信息后停止在这里
+	panicked = 1; // freeze other CPU
 	while(1) {
 		hlt();
 	}
