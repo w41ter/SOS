@@ -5,12 +5,14 @@
 #include "memlayout.h"
 #include "memory.h"
 #include "types.h"
+#include "spinlock.h"
 #include "vm.h"
 
 struct pool {
     bitmap bitmap;
     uint32_t phy_addr_start;
     uint32_t size;
+    struct spinlock lock;
 };
 
 struct pool kernel_pool, user_pool;
@@ -92,18 +94,40 @@ static void memory_pool_init(uint32_t all_mem)
 uint32_t alloc_kernel_ppages(uint32_t n)
 {
     // printk("try to allocate physic page: %d\n", n);
+    acquire(&kernel_pool.lock);
     uint32_t total = 0, start_addr;
     uint32_t bit_idx_start = bitmap_scan(&kernel_pool.bitmap, n);
-    if (bit_idx_start == -1)
+    if (bit_idx_start == -1) {
+        release(&kernel_pool.lock);
         return 0;
+    }
     for (; total < n; ++total) {
         bitmap_set(&kernel_pool.bitmap, bit_idx_start + total, 1);
     }
     start_addr = kernel_pool.phy_addr_start + bit_idx_start * PAGE_SIZE;
+    release(&kernel_pool.lock);
+    return start_addr;
+}
+
+uint32_t alloc_user_ppage(void)
+{
+    acquire(&user_pool.lock);
+    uint32_t start_addr;
+    uint32_t bit_idx_start = bitmap_scan(&kernel_pool.bitmap, 1);
+    if (bit_idx_start == -1) {
+        release(&user_pool.lock);
+        return 0;
+    }
+    bitmap_set(&kernel_pool.bitmap, bit_idx_start, 1);
+    start_addr = kernel_pool.phy_addr_start + bit_idx_start * PAGE_SIZE;
+    release(&user_pool.lock);
     return start_addr;
 }
 
 void pmm_init(void)
 {
     memory_pool_init(find_max_pa());
+
+    init_lock(&kernel_pool.lock, "kernel_pool");
+    init_lock(&user_pool.lock, "user_pool");
 }

@@ -6,6 +6,7 @@
 #include "types.h"
 #include "segment.h"
 #include "vm.h"
+#include "x86.h"
 
 // Task state segment format
 struct taskstate {
@@ -105,10 +106,11 @@ struct proc {
   enum procstate state;        // Process state
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
-  struct trapframe *tf;        // Trap frame for current syscall
+  struct trap_frame *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
   void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
+  struct virtual_addr va;      // Current virtual address pool
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
@@ -119,5 +121,11 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+void proc_init(void);
+void first_user_proc_init(void);
+
+void sched(void);
+void scheduler(void);
 
 #endif 

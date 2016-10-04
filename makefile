@@ -46,8 +46,10 @@ OBJECTS = \
 	memory.o\
 	mp.o\
 	picirq.o\
+	proc.o\
 	string.o\
 	spinlock.o\
+	switch.o\
 	timer.o\
 	trap.o\
 	trapasm.o\
@@ -74,8 +76,14 @@ entryother: entryother.S
 	$(OBJCOPY) -S -O binary -j .text bootblockother.o entryother
 	$(OBJDUMP) -S bootblockother.o > entryother.asm
 
-kernel: $(OBJECTS) entry.o entryother kernel.ld
-	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJECTS)  -b binary entryother
+initcode: initcode.S
+	$(CC) $(CFLAGS) -nostdinc -I. -c initcode.S
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o initcode.out initcode.o
+	$(OBJCOPY) -S -O binary initcode.out initcode
+	$(OBJDUMP) -S initcode.o > initcode.asm
+
+kernel: $(OBJECTS) entry.o entryother initcode kernel.ld
+	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJECTS)  -b binary entryother initcode
 	$(OBJDUMP) -S kernel > kernel.asm
 	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
 
@@ -91,7 +99,7 @@ vectors.S: vectors.pl
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*.o *.d *.asm *.sym vectors.S bootblock kernel disk.img \
-	.gdbinit entryother \
+	.gdbinit entryother initcode \
 
 # run in emulators
 

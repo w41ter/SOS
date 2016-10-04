@@ -67,7 +67,7 @@ void idt_init()
 
 void trap(struct trap_frame *tf)
 {
-	printk("vector: %d\n", tf->trapno);
+	// printk("vector: %d\n", tf->trapno);
     assert(tf->trapno != T_PGFLT);
 
 	if(tf->trapno == T_SYSCALL){

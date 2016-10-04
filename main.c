@@ -26,7 +26,7 @@ void trap_vector_init(void);
 
 //__attribute__((noreturn))
 static void mpmain(void);
-static void startothers(void);
+void startothers(void);
 
 int main(void) 
 {
@@ -34,7 +34,7 @@ int main(void)
     printk("Begin init kernel...\n");
 
     pmm_init();
-    kpde_init();
+    kvm_init();
 
     mpinit();
     lapicinit();
@@ -43,24 +43,16 @@ int main(void)
     pic_init();
     ioapic_init();
     console_init();
+
+    proc_init();
     trap_vector_init();
 
     if(!ismp)
        timer_init();   // uniprocessor timer
+       
     startothers();   // start other processors
-    //timer_init();
-
-    // sti();
-
-    uint32_t test = kalloc_pages(3);
-    printk("virtual address of test is: 0x%08x\n", test);
-    //test_pde(kernel_pde, 1);
-    //print_current_status();
-    //panic("test panic");
-
-    //mpmain();
-
-    while (1);
+    first_user_proc_init();
+    mpmain();
     return 0;
 }
 
@@ -101,15 +93,13 @@ static void mpmain(void)
     printk("cpu%d: starting\n", cpu->id);
     idt_init();       // load idt register
     xchg(&cpu->started, 1); // tell startothers() we're up
-    // scheduler();     // start running processes
-    printk("cpu%d: halting\n", cpu->id);
-    hlt();
+    scheduler();     // start running processes 
 }
 
 // Other CPUs jump here from entryother.S.
 static void mpenter(void)
-{
-    switch_kpde();
+{   
+    switch_kvm();
     seginit();
     lapicinit();
     mpmain();
@@ -119,7 +109,7 @@ pde_t entrypgdir[];  // For entry.S
 void lapicstartap(uint8_t apicid, uint32_t addr);
 
 // Start the non-boot (AP) processors.
-static void startothers(void)
+void startothers(void)
 {
     extern uint8_t _binary_entryother_start[], _binary_entryother_size[];
     uint8_t *code;
@@ -147,8 +137,10 @@ static void startothers(void)
         lapicstartap(c->id, V2P(code));
 
         // wait for cpu to finish mpmain()
+        printk(" wait ...\n");
         while(c->started == 0)
         ;
+        printk(" end wait\n");
     }
 }
 

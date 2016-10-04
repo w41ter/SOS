@@ -12,5 +12,6 @@ extern char end[];
 
 void pmm_init(void);
 uint32_t alloc_kernel_ppages(uint32_t n);
+uint32_t alloc_user_ppage(void);
 
 #endif /* _MEM_LAYOUT_H_ */

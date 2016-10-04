@@ -11,6 +11,7 @@ void bzero(void *dest, uint32_t len);
 int strcmp(const char *str1, const char *str2);
 char *strcpy(char *dest, const char *src);
 char *strcat(char *dest, const char *src);
+char* safestrcpy(char *s, const char *t, int n);
 int strlen(const char *src);
 
 #endif  // _STRING_H_
