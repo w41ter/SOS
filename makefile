@@ -50,6 +50,8 @@ OBJECTS = \
 	string.o\
 	spinlock.o\
 	switch.o\
+	syscall.o\
+	sysproc.o\
 	timer.o\
 	trap.o\
 	trapasm.o\
@@ -99,7 +101,7 @@ vectors.S: vectors.pl
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*.o *.d *.asm *.sym vectors.S bootblock kernel disk.img \
-	.gdbinit entryother initcode \
+	.gdbinit entryother initcode initcode.out \
 
 # run in emulators
 
