@@ -4,5 +4,5 @@
 
 void sys_getpid(void) 
 {
-    return proc->pid;
+    //return proc->pid;
 }

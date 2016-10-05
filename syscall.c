@@ -1,6 +1,8 @@
+#include "console.h"
 #include "debug.h"
 #include "proc.h"
 #include "syscall.h"
+#include "types.h"
 
 
 // User code makes a system call with INT T_SYSCALL.
@@ -10,7 +12,7 @@
 // to a saved program counter, and then the first argument.
 
 // Fetch the int at addr from the current process.
-int fetchint(uint addr, int *ip)
+int fetchint(uint32_t addr, int *ip)
 {
     if(addr >= proc->sz || addr+4 > proc->sz)
         return -1;
@@ -21,7 +23,7 @@ int fetchint(uint addr, int *ip)
 // Fetch the nul-terminated string at addr from the current process.
 // Doesn't actually copy the string - just sets *pp to point at it.
 // Returns length of string, not including nul.
-int fetchstr(uint addr, char **pp)
+int fetchstr(uint32_t addr, char **pp)
 {
     char *s, *ep;
 
@@ -50,7 +52,7 @@ int argptr(int n, char **pp, int size)
 
     if(argint(n, &i) < 0)
         return -1;
-    if((uint)i >= proc->sz || (uint)i+size > proc->sz)
+    if((uint32_t)i >= proc->sz || (uint32_t)i+size > proc->sz)
         return -1;
     *pp = (char*)i;
     return 0;
@@ -72,11 +74,10 @@ extern int sys_getpid(void);
 extern int sys_write(void);
 
 static int (*syscalls[])(void) = {
-    [_NR_getpid] = sys_getpid,
-    [_NR_write] = sys_write,
+    [_NR_getpid] = sys_getpid
 };
 
-#define NELEM(x) (sizeof(x)/sizeof((x)[0])
+#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
 
 void syscall(void)
 {

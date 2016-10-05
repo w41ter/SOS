@@ -83,7 +83,7 @@ void first_user_proc_init(void)
         panic("userinit: out of memory?");
     init_uvm(p->pgdir, _binary_initcode_start, 
         (uint32_t)_binary_initcode_size);
-    
+  
     printk("first_user_proc_init: try to init base infor...\n");
     p->sz = PAGE_SIZE;
     memset(p->tf, 0, sizeof(*p->tf));
@@ -92,7 +92,7 @@ void first_user_proc_init(void)
     p->tf->es = p->tf->ds;
     p->tf->ss = p->tf->ds;
     p->tf->eflags = FL_IF;
-    p->tf->esp = PAGE_SIZE;
+    p->tf->esp = PAGE_SIZE; // 0 + PAGE_SIZE;
     p->tf->eip = 0;  // beginning of initcode.S
 
     // todo:
@@ -130,13 +130,17 @@ void scheduler(void)
             continue;
 
         printk("  now CPU%d begin run process %d\n", cpu->id, p->pid); 
-        hlt();  
+  
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
         proc = p;
         switch_uvm(p);
         p->state = RUNNING;
+        printk("scheduler: begin swtch...\n");
+        uint32_t *stack = (uint32_t*)p->context;
+        stack += sizeof(p->context);
+        assert(*stack == (uint32_t)fork_ret);
         swtch(&cpu->scheduler, p->context);
         switch_kvm();
 
@@ -172,6 +176,8 @@ void sched(void)
 void fork_ret(void)
 {
     static int first = 1;
+    
+    printk("  fork_ret: begin...\n");
     // Still holding ptable.lock from scheduler.
     release(&ptable.lock);
 
@@ -184,5 +190,69 @@ void fork_ret(void)
         //initlog(ROOTDEV);
     }
 
+    printk(" Return to \"caller\"\n");
+    hlt();
     // Return to "caller", actually trapret (see allocproc).
 }
+
+static void wakeup1(void *chan)
+{
+  struct proc *p;
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->state == SLEEPING && p->chan == chan)
+      p->state = RUNNABLE;
+}
+
+// Wake up all processes sleeping on chan.
+void wakeup(void *chan)
+{
+  acquire(&ptable.lock);
+  wakeup1(chan);
+  release(&ptable.lock);
+}
+
+// Exit the current process.  Does not return.
+// An exited process remains in the zombie state
+// until its parent calls wait() to find out it exited.
+void exit(void)
+{
+  struct proc *p;
+  //int fd;
+
+  if(proc == initproc)
+    panic("init exiting");
+
+  // Close all open files.
+  //for(fd = 0; fd < NOFILE; fd++){
+    //if(proc->ofile[fd]){
+    //  fileclose(proc->ofile[fd]);
+    //  proc->ofile[fd] = 0;
+    //}
+  //}
+
+  //begin_op();
+  //iput(proc->cwd);
+  //end_op();
+  proc->cwd = 0;
+
+  acquire(&ptable.lock);
+
+  // Parent might be sleeping in wait().
+  wakeup1(proc->parent);
+
+  // Pass abandoned children to init.
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == proc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
+
+  // Jump into the scheduler, never to return.
+  proc->state = ZOMBIE;
+  sched();
+  panic("zombie exit");
+}
+

@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "segment.h"
 #include "spinlock.h"
+#include "syscall.h"
 #include "x86.h"
 
 #define IDT_DESC_CNT 0xff
@@ -20,6 +21,11 @@
 		((IDT_DESC_P << 7) + (IDT_DESC_DPL0 << 5) + IDT_DESC_32_TYPE)
 #define IDT_DESC_ATTR_DPL3 \
 		((IDT_DESC_P << 7) + (IDT_DESC_DPL3 << 5) + IDT_DESC_32_TYPE)
+
+#define TRAP_DESC_ATTR_DPL0 \
+		((IDT_DESC_P << 7) + (IDT_DESC_DPL0 << 5) + TRAP_DESC_32_TYPE)
+#define TRAP_DESC_ATTR_DPL3 \
+		((IDT_DESC_P << 7) + (IDT_DESC_DPL3 << 5) + TRAP_DESC_32_TYPE)
 
 typedef void *intr_handler;
 
@@ -56,6 +62,8 @@ void trap_vector_init(void)
     for (i = 0; i < IDT_DESC_CNT; ++i) {
         make_trap_vector(&idt[i], IDT_DESC_ATTR_DPL0, vectors[i]);
     }
+	make_trap_vector(&idt[T_SYSCALL],
+		TRAP_DESC_ATTR_DPL3, vectors[T_SYSCALL]);
 
 	init_lock(&tickslock, "ticks");
 }
@@ -71,12 +79,12 @@ void trap(struct trap_frame *tf)
     assert(tf->trapno != T_PGFLT);
 
 	if(tf->trapno == T_SYSCALL){
-		// if(proc->killed)
-		//   exit();
-		// proc->tf = tf;
-		// syscall();
-		// if(proc->killed)
-		//   exit();
+		if(proc->killed)
+		  exit();
+		proc->tf = tf;
+		syscall();
+		if(proc->killed)
+		  exit();
 		return;
 	}
 

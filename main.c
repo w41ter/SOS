@@ -35,7 +35,7 @@ int main(void)
 
     pmm_init();
     kvm_init();
-
+    
     mpinit();
     lapicinit();
     seginit();
@@ -49,7 +49,7 @@ int main(void)
 
     if(!ismp)
        timer_init();   // uniprocessor timer
-       
+    
     startothers();   // start other processors
     first_user_proc_init();
     mpmain();
@@ -90,9 +90,10 @@ void seginit(void)
 // Common CPU setup code.
 static void mpmain(void)
 {
-    printk("cpu%d: starting\n", cpu->id);
+    printk("  mpmain: cpu%d: starting\n", cpu->id);
     idt_init();       // load idt register
     xchg(&cpu->started, 1); // tell startothers() we're up
+    hlt();
     scheduler();     // start running processes 
 }
 
@@ -137,10 +138,10 @@ void startothers(void)
         lapicstartap(c->id, V2P(code));
 
         // wait for cpu to finish mpmain()
-        printk(" wait ...\n");
+        printk("startothers: wait CPU%d start ...\n", c->id);
         while(c->started == 0)
-        ;
-        printk(" end wait\n");
+            ;
+        printk("startothers: end wait CPU%d\n", c->id);
     }
 }
 

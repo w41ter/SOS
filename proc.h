@@ -125,6 +125,8 @@ struct proc {
 void proc_init(void);
 void first_user_proc_init(void);
 
+void wakeup(void *chan);
+void exit(void);
 void sched(void);
 void scheduler(void);
 

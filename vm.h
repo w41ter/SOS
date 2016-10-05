@@ -69,8 +69,6 @@ struct virtual_addr {
 void switch_kvm(void);
 pde_t *setup_kvm(void);
 void kvm_init(void);
-uint32_t *pte_ptr(uint32_t va);
-uint32_t *pde_ptr(uint32_t va);
 uint32_t kalloc(void);
 uint32_t kalloc_pages(uint32_t cnt);
 void dump_page_table(pde_t *pde, int stop);
