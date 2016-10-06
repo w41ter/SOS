@@ -11,7 +11,7 @@ extern char end[];
 #define KERNEL_HEAP_START   (MEM_BITMAP_END)
 
 void pmm_init(void);
-uint32_t alloc_kernel_ppages(uint32_t n);
-uint32_t alloc_user_ppage(void);
+uint32_t alloc_physic_pages(uint32_t n);
+void free_physic_pages(uint32_t pa, uint32_t size);
 
 #endif /* _MEM_LAYOUT_H_ */

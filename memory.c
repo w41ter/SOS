@@ -15,7 +15,7 @@ struct pool {
     struct spinlock lock;
 };
 
-struct pool kernel_pool, user_pool;
+struct pool pmm;
 extern struct virtual_addr kvm;     // define at vm.c
 
 // some constants for bios interrupt 15h AX = 0xE820
@@ -59,75 +59,56 @@ static void memory_pool_init(uint32_t all_mem)
     
     uint32_t free_mem = all_mem - (uint32_t)V2P(KERNEL_HEAP_START);
     uint16_t all_free_pages = free_mem / PAGE_SIZE;
-    uint16_t kernel_free_pages = all_free_pages >> 1;
-    uint16_t user_free_pages = all_free_pages - kernel_free_pages;
-    uint32_t kbm_length = kernel_free_pages >> 3;
-    uint32_t ubm_length = user_free_pages >> 3;
-    uint32_t kp_start = (uint32_t)V2P(KERNEL_HEAP_START);
-    uint32_t up_start = kp_start + kernel_free_pages * PAGE_SIZE;
+    uint32_t kbm_length = all_free_pages >> 3;
 
-    kernel_pool.phy_addr_start = kp_start;
-    kernel_pool.size = kernel_free_pages * PAGE_SIZE;
-    kernel_pool.bitmap.btmp_bytes_len = kbm_length;
-    kernel_pool.bitmap.bits = (uint8_t*)MEM_BITMAP_BASE;
+    pmm.phy_addr_start = (uint32_t)V2P(KERNEL_HEAP_START);
+    pmm.size = all_free_pages * PAGE_SIZE;
+    pmm.bitmap.btmp_bytes_len = kbm_length;
+    pmm.bitmap.bits = (uint8_t*)MEM_BITMAP_BASE;
 
-    user_pool.phy_addr_start = up_start;
-    user_pool.size = user_free_pages * PAGE_SIZE;
-    user_pool.bitmap.btmp_bytes_len = ubm_length;
-    user_pool.bitmap.bits = (uint8_t*)(MEM_BITMAP_BASE + kbm_length);
+    bitmap_init(&pmm.bitmap);
 
-    bitmap_init(&kernel_pool.bitmap);
-    bitmap_init(&user_pool.bitmap);
+    printk("physic mem address:0x%08x size:0x%08x\n", 
+        pmm.bitmap.bits, pmm.bitmap.btmp_bytes_len);
 
-    kvm.bitmap.btmp_bytes_len = kbm_length;
-    kvm.bitmap.bits = 
-        (uint8_t*)(MEM_BITMAP_BASE + kbm_length + ubm_length);
+    all_free_pages = (DEVSPACE-KERNEL_HEAP_START) / PAGE_SIZE; 
+    kvm.bitmap.btmp_bytes_len = all_free_pages >> 3;
+    kvm.bitmap.bits = (uint8_t*)(MEM_BITMAP_BASE + kbm_length);
     kvm.start = KERNEL_HEAP_START;
     bitmap_init(&kvm.bitmap);
-
-    printk("kernel physic mem address:0x%08x size:0x%08x\n", 
-        kernel_pool.bitmap.bits, kernel_pool.bitmap.btmp_bytes_len);
-    printk("user physic mem address:0x%08x size:0x%08x\n", 
-        user_pool.bitmap.bits, user_pool.bitmap.btmp_bytes_len);
 }
 
-uint32_t alloc_kernel_ppages(uint32_t n)
+uint32_t alloc_physic_pages(uint32_t n)
 {
     // printk("try to allocate physic page: %d\n", n);
-    acquire(&kernel_pool.lock);
+    acquire(&pmm.lock);
     uint32_t total = 0, start_addr;
-    uint32_t bit_idx_start = bitmap_scan(&kernel_pool.bitmap, n);
+    uint32_t bit_idx_start = bitmap_scan(&pmm.bitmap, n);
     if (bit_idx_start == -1) {
-        release(&kernel_pool.lock);
+        release(&pmm.lock);
         return 0;
     }
     for (; total < n; ++total) {
-        bitmap_set(&kernel_pool.bitmap, bit_idx_start + total, 1);
+        bitmap_set(&pmm.bitmap, bit_idx_start + total, 1);
     }
-    start_addr = kernel_pool.phy_addr_start + bit_idx_start * PAGE_SIZE;
-    release(&kernel_pool.lock);
+    start_addr = pmm.phy_addr_start + bit_idx_start * PAGE_SIZE;
+    release(&pmm.lock);
     return start_addr;
 }
 
-uint32_t alloc_user_ppage(void)
+void free_physic_pages(uint32_t pa, uint32_t size)
 {
-    acquire(&user_pool.lock);
-    uint32_t start_addr;
-    uint32_t bit_idx_start = bitmap_scan(&kernel_pool.bitmap, 1);
-    if (bit_idx_start == -1) {
-        release(&user_pool.lock);
-        return 0;
+    uint32_t bit_idx = (pa-pmm.start) / PAGE_SIZE;
+    acquire(&pmm.lock);
+    while (size--) {
+        bitmap_set(&pmm.bitmap, bit_idx++, 0);
     }
-    bitmap_set(&kernel_pool.bitmap, bit_idx_start, 1);
-    start_addr = kernel_pool.phy_addr_start + bit_idx_start * PAGE_SIZE;
-    release(&user_pool.lock);
-    return start_addr;
+    release(&pmm.lock);
 }
 
 void pmm_init(void)
 {
     memory_pool_init(find_max_pa());
 
-    init_lock(&kernel_pool.lock, "kernel_pool");
-    init_lock(&user_pool.lock, "user_pool");
+    init_lock(&pmm.lock, "pmm");
 }
