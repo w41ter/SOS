@@ -65,6 +65,8 @@ found:
   memset(p->context, 0, sizeof(*p->context));
   p->context->eip = (uint32_t)fork_ret;
 
+  block_desc_init(p->ublocks);
+
   return p;
 }
 

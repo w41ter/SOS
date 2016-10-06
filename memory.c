@@ -98,7 +98,7 @@ uint32_t alloc_physic_pages(uint32_t n)
 
 void free_physic_pages(uint32_t pa, uint32_t size)
 {
-    uint32_t bit_idx = (pa-pmm.start) / PAGE_SIZE;
+    uint32_t bit_idx = (pa-pmm.phy_addr_start) / PAGE_SIZE;
     acquire(&pmm.lock);
     while (size--) {
         bitmap_set(&pmm.bitmap, bit_idx++, 0);

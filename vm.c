@@ -11,6 +11,15 @@
 #include "vm.h"
 #include "x86.h"
 
+
+struct arena {
+    struct mem_block_desc *desc;
+    uint32_t size;
+    int G;  // if G : size = pages else: size = mem_blocks
+};
+
+struct mem_block_desc kblocks[NBLOCKDESC];
+
 // 设备内存空间前一页用于自映射
 #define SELFMAP (DEVSPACE - PAGE_SIZE)
 
@@ -26,7 +35,7 @@ pte_t kernel_pte[NPTENTRIES] __attribute__((aligned(PAGE_SIZE)));
 // 设备区域 8 个
 pte_t device_pte[8][NPTENTRIES] __attribute__((aligned(PAGE_SIZE)));
 
-typedef void (*page_map_vptr)(uint32_t, uint32_t, uint32_t);
+static void dump_page_table(pde_t *pde, int stop);
 
 // 返回指定虚拟地址在页目录中页表引用
 static uint32_t *pte_ptr(uint32_t va) 
@@ -42,6 +51,13 @@ static uint32_t *pde_ptr(uint32_t va)
     return (uint32_t*)((pdx << 22) + (pdx << 12) + PDX(va) * 4);
 }
 
+// can use in user vm.
+static uint32_t virtual_to_physic(uint32_t va)
+{
+    uint32_t *pte = pte_ptr(va);
+    return ((*pte & PAGE_MASK) + (va & ~PAGE_MASK));
+}
+
 // 将指定页面映射到当前页目录指定位置
 static void page_map(uint32_t va, uint32_t pa, uint32_t flags)
 {
@@ -53,7 +69,7 @@ static void page_map(uint32_t va, uint32_t pa, uint32_t flags)
     //hlt();
     
     if (!(*pde & PTE_P)) {
-        uint32_t page = alloc_kernel_ppages(1);
+        uint32_t page = alloc_physic_pages(1);
         *pde = (page & PAGE_MASK) | PTE_P | PTE_W | flags;   
              // flags for PTE_U
         
@@ -136,12 +152,13 @@ void kvm_init(void)
     kernel_init_range_map(DEVSPACE, DEVSPACE, 0 - DEVSPACE, PTE_W);
 
     switch_kvm();
-
+    
+    block_desc_init(kblocks);
     // pde_t *pde = pde_ptr(0);
     // pte_t *pte = pte_ptr(0);
     // printk("kvm_init: kernel_pde at 0x%08x, 0x%08x, 0x%08x\n", 
     //     kernel_pde, pde, pte);
-    // dump_page_table(kernel_pde, 0);
+    dump_page_table(kernel_pde, 1);
 }
 
 void mmap(uint32_t va, uint32_t pa, uint32_t flags)
@@ -152,107 +169,15 @@ void mmap(uint32_t va, uint32_t pa, uint32_t flags)
     asm volatile ("invlpg (%0)" : : "a" (va));
 }
 
-void unmap(pde_t *pde, uint32_t va)
+void unmap(uint32_t va)
 {
-    uint32_t pde_idx = PDX(va);
-    uint32_t pte_idx = PTX(va);
-
-    pte_t *pte = (pte_t *)(pde[pde_idx] & PAGE_MASK);
-
-    if (!pte) {
-        return;
-    }
-
-    // 转换到内核线性地址
-    pte = (pte_t *)((uint32_t)pte + KERNEL_BASE);
-
-    pte[pte_idx] = 0;
+    uint32_t *pte = pte_ptr(va);
+    *pte &= ~PTE_P;
 
     // 通知 CPU 更新页表缓存
     asm volatile ("invlpg (%0)" : : "a" (va));
 }
 
-uint32_t get_mapping(pde_t *pde, uint32_t va, uint32_t *pa)
-{
-    uint32_t pde_idx = PDX(va);
-    uint32_t pte_idx = PTX(va);
-
-    pte_t *pte = (pte_t *)(pde[pde_idx] & PAGE_MASK);
-    if (!pte) {
-          return 0;
-    }
-    
-    // 转换到内核线性地址
-    pte = (pte_t *)((uint32_t)pte + KERNEL_BASE);
-
-    // 如果地址有效而且指针不为NULL，则返回地址
-    if (pte[pte_idx] != 0 && pa) {
-         *pa = pte[pte_idx] & PAGE_MASK;
-        return 1;
-    }
-
-    return 0;
-}
-
-static uint32_t alloc_kernel_vpages(uint32_t cnt)
-{
-    // printk("try to allocate virtual page: %d\n", cnt);
-    int32_t vaddr_start = 0, bit_idx_start = -1;
-    bit_idx_start = bitmap_scan(&kvm.bitmap, cnt);
-    if (bit_idx_start == -1)
-        return 0;
-    uint32_t idx = 0;
-    for (; idx < cnt; ++idx) {
-        bitmap_set(&kvm.bitmap, bit_idx_start + idx, 1);
-    }
-    vaddr_start = kvm.start + bit_idx_start * PAGE_SIZE;
-    return vaddr_start;
-}
-
-static uint32_t alloc_user_vpage(void)
-{
-    int32_t vaddr_start = 0, bit_idx_start = -1;
-    bit_idx_start = bitmap_scan(&proc->va.bitmap, 1);
-    if (bit_idx_start == -1)
-        return 0;
-    bitmap_set(&proc->va.bitmap, bit_idx_start, 1);
-    vaddr_start = proc->va.start + bit_idx_start * PAGE_SIZE;
-    return vaddr_start;
-}
-
-uint32_t kalloc_pages(uint32_t cnt)
-{
-    assert(cnt > 0 && cnt < 2048);
-    uint32_t va = alloc_kernel_vpages(cnt);
-    if (va == 0)
-        return 0;
-    uint32_t cva = va;
-    while (cnt--) {
-        uint32_t pa = alloc_kernel_ppages(1);
-        if (pa == 0) {
-            // TODO: 回收内存
-            return 0;
-        }
-        mmap(cva, pa, PTE_W);
-        cva += PAGE_SIZE;
-    }
-    return va;
-}
-
-uint32_t kalloc(void)
-{
-    return kalloc_pages(1);
-}
-
-uint32_t ualloc(void)
-{
-    uint32_t va = alloc_user_vpage();
-    if (va == 0)
-        return 0;
-    uint32_t pa = alloc_user_ppage();
-    mmap(va, pa, PTE_W);
-    return va;
-}
 
 // switch to page dir entries, must be virtual address. 
 static inline void switch_to_vm(pde_t *pde)
@@ -317,7 +242,7 @@ void init_uvm(pde_t *pgdir, char *init, uint32_t sz)
     // 先切换到用户页目录，避免将内存安装到内核页目录
     switch_to_vm(pgdir);
 
-    range_map(0, alloc_kernel_ppages(1), PAGE_SIZE, PTE_W|PTE_U);
+    range_map(0, alloc_physic_pages(1), PAGE_SIZE, PTE_W|PTE_U);
 
     // 此时 0x00000000 映射到了指定位置
     memset(0, 0, PAGE_SIZE);
@@ -337,7 +262,7 @@ static void print_map(uint32_t pde_idx, uint32_t bi,
 }
 
 // notice: 有很多没有直接映射页表的页面会导致访问出错
-void dump_page_table(pde_t *pde, int stop)
+static void dump_page_table(pde_t *pde, int stop)
 {
     printk("dump_page_table:\n");
     uint32_t idx = 0;
@@ -378,5 +303,253 @@ void dump_page_table(pde_t *pde, int stop)
     }
     while (!stop) {
         hlt();
+    }
+}
+
+static uint32_t alloc_kernel_virtual_pages(uint32_t cnt)
+{
+    // printk("try to allocate virtual page: %d\n", cnt);
+    int32_t vaddr_start = 0, bit_idx_start = -1;
+    bit_idx_start = bitmap_scan(&kvm.bitmap, cnt);
+    if (bit_idx_start == -1)
+        return 0;
+    uint32_t idx = 0;
+    for (; idx < cnt; ++idx) {
+        bitmap_set(&kvm.bitmap, bit_idx_start + idx, 1);
+    }
+    vaddr_start = kvm.start + bit_idx_start * PAGE_SIZE;
+    return vaddr_start;
+}
+
+static uint32_t alloc_user_virtual_pages(uint32_t cnt)
+{
+    int32_t vaddr_start = 0, bit_idx_start = -1;
+    bit_idx_start = bitmap_scan(&proc->va.bitmap, 1);
+    if (bit_idx_start == -1)
+        return 0;
+    bitmap_set(&proc->va.bitmap, bit_idx_start, 1);
+    vaddr_start = proc->va.start + bit_idx_start * PAGE_SIZE;
+    return vaddr_start;
+}
+
+uint32_t kalloc_pages(uint32_t cnt)
+{
+    assert(cnt > 0 && cnt < 2048);
+    uint32_t va = alloc_kernel_virtual_pages(cnt);
+    if (va == 0)
+        return 0;
+    uint32_t cva = va;
+    while (cnt--) {
+        uint32_t pa = alloc_physic_pages(1);
+        if (pa == 0) {
+            // TODO: 回收内存
+            return 0;
+        }
+        mmap(cva, pa, PTE_W);
+        cva += PAGE_SIZE;
+    }
+    return va;
+}
+
+uint32_t kalloc(void)
+{
+    return kalloc_pages(1);
+}
+
+uint32_t ualloc_pages(uint32_t n)
+{
+    assert(n > 0 && n < 2048);
+    uint32_t va = alloc_user_virtual_pages(n);
+    if (va == 0)
+        return 0;
+    uint32_t cva = va;
+    while (n--) {
+        uint32_t pa = alloc_physic_pages(1);
+        if (pa == 0) {
+            // TODO: 回收内存
+            return 0;
+        }
+        mmap(cva, pa, PTE_W);
+        cva += PAGE_SIZE;
+    }
+    return va;
+}
+
+uint32_t ualloc(void)
+{
+    return ualloc_pages(1);
+}
+
+static void free_kernel_virtual_pages(uint32_t va, uint32_t size)
+{
+    uint32_t bit_idx_start = 0, n = 0;
+    bit_idx_start = (va-kvm.start) / PAGE_SIZE;
+    while (n < size) {
+        bitmap_set(&kvm.bitmap, bit_idx_start + n++, 0);
+    }
+}
+
+static void free_user_virtual_pages(uint32_t va, uint32_t size)
+{
+    uint32_t bit_idx_start = 0, n = 0;
+    bit_idx_start = (va-proc->va.start) / PAGE_SIZE;
+    while (n < size) {
+        bitmap_set(&kvm.bitmap, bit_idx_start + n++, 0);
+    }
+}
+
+void kfree_pages(uint32_t va, uint32_t size)
+{
+    uint32_t n = 0, tmp = va;
+    while (n < size) {
+        tmp += PAGE_SIZE;
+        // FIXME: v2p
+        free_physic_pages(virtual_to_physic(tmp), 1);
+        unmap(tmp);
+        ++n;
+    }
+    free_kernel_virtual_pages(va, size);
+}
+
+void ufree_pages(uint32_t va, uint32_t size)
+{
+    uint32_t n = 0, tmp = va;
+    while (n < size) {
+        tmp += PAGE_SIZE;
+        // FIXME: v2p
+        free_physic_pages(virtual_to_physic(tmp), 1);
+        unmap(tmp);
+        ++n;
+    }
+    free_user_virtual_pages(va, size);
+}
+
+static struct mem_block *arena_to_block(struct arena *a, uint32_t idx)
+{
+    return (struct mem_block*)((uint32_t)a + sizeof(struct arena)
+        + idx * a->desc->size);
+}
+
+static struct arena *block_to_arena(struct mem_block *b)
+{
+    return (struct arena*)((uint32_t)b & PAGE_MASK);
+}
+
+static void* mem_block_alloc_pages(uint32_t size)
+{
+    struct arena *a;
+    uint32_t need_nums = PGROUNDUP(size + sizeof(struct arena));
+    a = (struct arena *)ualloc_pages(need_nums);
+    if (a != NULL) {
+        bzero(a, PAGE_SIZE * need_nums);
+        a->desc = NULL;
+        a->size = need_nums;
+        a->G = 1;
+        return a + 1;
+    }
+    return NULL;
+}
+
+static uint32_t mem_block_find_fit_block(
+    struct mem_block_desc *descs, uint32_t size)
+{
+    uint8_t idx;
+    for (idx = 0; idx < NBLOCKDESC; ++idx) {
+        if (size <= descs[idx].size)
+            break;
+    }
+    assert(idx < NBLOCKDESC);
+    return idx;
+}
+
+// must hold be acquire 
+static int mem_block_try_expand_free_list(
+    struct mem_block_desc *desc)
+{
+    assert(desc);
+
+    struct arena *a;
+    uint32_t block_idx;
+    if (list_empty(&desc->free_list)) {
+        a = (struct arena *)ualloc();
+        if (a == NULL)
+            return 0;
+        bzero(a, PAGE_SIZE);
+        a->desc = desc;
+        a->G = 0;
+        a->size = desc->total;
+        for (block_idx = 0; block_idx < a->size; ++block_idx) {
+            list_append(&desc->free_list, 
+                &arena_to_block(a, block_idx)->node);
+        }
+    }
+    return 1;
+}
+
+int sys_malloc(uint32_t size)
+{
+    uint32_t idx;
+    struct arena *a;
+    struct mem_block *block;
+    struct mem_block_desc *descs = proc->ublocks;
+    
+    if (size > 1024) {
+        return (int)mem_block_alloc_pages(size);
+    }
+    idx = mem_block_find_fit_block(descs, size);
+
+    acquire(&descs[idx].lock);
+    if (!mem_block_try_expand_free_list(&descs[idx])) {
+        release(&descs[idx].lock);
+        return 0;
+    }
+    struct list_node *node = list_head(&(descs[idx].free_list));
+    block = list_get(node, struct mem_block, node);
+    memset(block, 0, descs[idx].size);
+    a = block_to_arena(block);
+    a->size--;
+    release(&descs[idx].lock);
+
+    return (int)block;
+}
+
+int sys_free(void *ptr)
+{
+    struct arena *a;
+    struct mem_block *block;
+
+    if (ptr == NULL)
+        return 0;
+    
+    block = (struct mem_block*)ptr;
+    a = block_to_arena(block);
+    if (a->G) {
+        ufree_pages((uint32_t)a, a->size);
+        return 0;
+    }
+
+    acquire(&a->desc->lock);
+    list_append(&a->desc->free_list, &block->node);
+    if (++a->size == a->desc->total) {
+        uint32_t idx;
+        for (idx = 0; idx < a->desc->total; ++idx) {
+            block = arena_to_block(a, idx);
+            list_remove(&block->node);
+        }
+        ufree_pages((uint32_t)a, 1);
+    }
+    release(&a->desc->lock);
+    return 0;    
+}
+
+void block_desc_init(struct mem_block_desc *desc)
+{
+    uint16_t idx, size = 16;
+    for (idx = 0; idx < NBLOCKDESC; ++idx) {
+        desc[idx].size = size;
+        desc[idx].total = (PAGE_SIZE-sizeof(struct arena)) / size;
+        list_init(&desc[idx].free_list);
+        init_lock(&desc[idx].lock, "mem_block_desc");
+        size <<= 1; 
     }
 }

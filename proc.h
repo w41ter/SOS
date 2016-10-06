@@ -2,6 +2,7 @@
 #define _PROC_H_
 
 #include "flags.h"
+#include "memory.h"
 #include "param.h"
 #include "types.h"
 #include "segment.h"
@@ -111,6 +112,7 @@ struct proc {
   void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   struct virtual_addr va;      // Current virtual address pool
+  struct mem_block_desc ublocks[NBLOCKDESC];
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)

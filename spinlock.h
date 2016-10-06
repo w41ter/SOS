@@ -1,7 +1,6 @@
 #ifndef _SPIN_LOCK_H_
 #define _SPIN_LOCK_H_
 
-#include "proc.h"
 #include "types.h"
 
 // Mutual exclusion lock.
