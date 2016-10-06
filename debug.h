@@ -11,7 +11,7 @@
     switch (x) { case 0: case (x):;}
 
 void panic(const char *msg);
-void print_stack_trace(void);
+void print_stack_frame(void);
 void print_current_status(void);
 
 
