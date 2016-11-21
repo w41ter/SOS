@@ -74,6 +74,8 @@ pde_t *setup_kvm(void);
 void switch_kvm(void);
 void kvm_init(void);
 void init_uvm(pde_t *pgdir, char *init, uint32_t sz);
+pde_t *copy_uvm(pde_t *pgdir);
+void free_vm(pde_t *pgdir);
 
 uint32_t kalloc(void);
 uint32_t kalloc_pages(uint32_t cnt);

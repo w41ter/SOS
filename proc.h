@@ -101,13 +101,20 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
 struct proc {
-  uint32_t sz;                     // Size of process memory (bytes)
+  uint32_t sz;                 // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
   int pid;                     // Process ID
+  long counter;
+  long priority;
+  int exit_code;
+  uint32_t start_code;
+  uint32_t end_code;
+  uint32_t end_data;
+  uint32_t brk;
   struct proc *parent;         // Parent process
-  struct trap_frame *tf;        // Trap frame for current syscall
+  struct trap_frame *tf;       // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
   void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
@@ -127,9 +134,16 @@ struct proc {
 void proc_init(void);
 void first_user_proc_init(void);
 
+int fork(void);
+int wait(void);
 void wakeup(void *chan);
+void yield(void);
 void exit(void);
 void sched(void);
 void scheduler(void);
+void fork_ret(void);
+void sleep(void *chan, struct spinlock *lk);
+int kill(int pid);
+void procdump(void);
 
 #endif 

@@ -251,6 +251,34 @@ void init_uvm(pde_t *pgdir, char *init, uint32_t sz)
     switch_kvm();
 }
 
+// Free a page table and all the physical memory pages
+// in the user part.
+void free_vm(pde_t *pgdir)
+{
+    uint32_t i;
+
+    if (pgdir == 0)
+        panic("freevm: no pgdir");
+    for (i = 0; i < NPDENTRIES; i++) {
+        if (pgdir[i] & PTE_P) {
+            uint32_t v = (uint32_t)P2V(PTE_ADDR(pgdir[i]));
+            kfree_pages(v, 1);
+        }
+    }
+    kfree_pages((uint32_t)pgdir, 1);
+}
+
+// Given a parent process's page table, create a copy
+// of it for a child.
+pde_t *copy_uvm(pde_t *pgdir)
+{
+    pde_t *pde = (pde_t*)kalloc();
+    if (pde == NULL)
+        return NULL;
+    memcpy(pde, pgdir, PAGE_SIZE);
+    return pde;
+}
+
 static void print_map(uint32_t pde_idx, uint32_t bi,
     uint32_t ei, uint32_t beg, uint32_t end)
 {

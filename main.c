@@ -33,6 +33,7 @@ int main(void)
     console_clear();
     printk("Begin init kernel...\n");
 
+    panic("test");
     pmm_init();
     kvm_init();
     

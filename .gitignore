@@ -34,3 +34,6 @@
 
 target
 *.img
+
+# ide
+.vscode

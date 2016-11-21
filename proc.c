@@ -31,43 +31,43 @@ void proc_init(void)
 // Must hold ptable.lock.
 static struct proc *alloc_proc(void)
 {
-  struct proc *p;
-  char *sp;
+    struct proc *p;
+    char *sp;
 
-  printk("  alloc_proc: begin...\n");
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
-      goto found;
-  return 0;
+    printk("  alloc_proc: begin...\n");
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+        if(p->state == UNUSED)
+        goto found;
+    return 0;
 
 found:
-  p->state = EMBRYO;
-  p->pid = nextpid++;
+    p->state = EMBRYO;
+    p->pid = nextpid++;
 
-  // Allocate kernel stack.
-  if((p->kstack = (char*)kalloc()) == 0){
-    p->state = UNUSED;
-    return 0;
-  }
-  sp = p->kstack + KSTACKSIZE;
+    // Allocate kernel stack.
+    if ((p->kstack = (char*)kalloc()) == 0) {
+        p->state = UNUSED;
+        return 0;
+    }
+    sp = p->kstack + KSTACKSIZE;
 
-  // Leave room for trap frame.
-  sp -= sizeof(*p->tf);
-  p->tf = (struct trap_frame*)sp;
+    // Leave room for trap frame.
+    sp -= sizeof(*p->tf);
+    p->tf = (struct trap_frame*)sp;
 
-  // Set up new context to start executing at fork_ret,
-  // which returns to trap_ret.
-  sp -= 4;
-  *(uint32_t*)sp = (uint32_t)trap_ret;
+    // Set up new context to start executing at fork_ret,
+    // which returns to trap_ret.
+    sp -= 4;
+    *(uint32_t*)sp = (uint32_t)trap_ret;
 
-  sp -= sizeof(*p->context);
-  p->context = (struct context*)sp;
-  memset(p->context, 0, sizeof(*p->context));
-  p->context->eip = (uint32_t)fork_ret;
+    sp -= sizeof(*p->context);
+    p->context = (struct context*)sp;
+    memset(p->context, 0, sizeof(*p->context));
+    p->context->eip = (uint32_t)fork_ret;
 
-  block_desc_init(p->ublocks);
+    block_desc_init(p->ublocks);
 
-  return p;
+    return p;
 }
 
 void first_user_proc_init(void)
@@ -104,6 +104,146 @@ void first_user_proc_init(void)
     p->state = RUNNABLE;
 
     release(&ptable.lock);
+}
+
+// Create a new process copying p as the parent.
+// Sets up stack to return as if from system call.
+// Caller must set state of returned proc to RUNNABLE.
+int fork(void) 
+{
+    int pid;
+    struct proc *p;
+
+    acquire(&ptable.lock);
+
+    if ((p = alloc_proc()) == 0) {
+        release(&ptable.lock);
+        return -1;
+    }
+
+    if ((p->pgdir = copy_uvm(proc->pgdir)) == 0) {
+        kfree_pages((uint32_t)p->kstack, 1);
+        p->kstack = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return -1;
+    }
+    p->sz = proc->sz;
+    p->parent = proc;
+    *p->tf = *proc->tf;
+
+    // Clear %eax so that fork returns 0 in the child.
+    p->tf->eax = 0;
+
+    // for(i = 0; i < NOFILE; i++)
+    //     if(proc->ofile[i])
+    //     p->ofile[i] = filedup(proc->ofile[i]);
+    // p->cwd = idup(proc->cwd);
+
+    safestrcpy(p->name, proc->name, sizeof(proc->name));
+
+    pid = p->pid;
+
+    p->state = RUNNABLE;
+
+    release(&ptable.lock);
+
+    return pid;
+}
+
+static void wakeup1(void *chan)
+{
+    struct proc *p;
+
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+        if (p->state == SLEEPING && p->chan == chan)
+            p->state = RUNNABLE;
+}
+
+// Exit the current process.  Does not return.
+// An exited process remains in the zombie state
+// until its parent calls wait() to find out it exited.
+void exit(void)
+{
+    struct proc *p;
+    //int fd;
+
+    if(proc == initproc)
+        panic("init exiting");
+
+    // Close all open files.
+    // for(fd = 0; fd < NOFILE; fd++){
+    //     if(proc->ofile[fd]){
+    //     fileclose(proc->ofile[fd]);
+    //     proc->ofile[fd] = 0;
+    //     }
+    // }
+
+    // begin_op();
+    // iput(proc->cwd);
+    // end_op();
+    proc->cwd = 0;
+
+    acquire(&ptable.lock);
+
+    // Parent might be sleeping in wait().
+    wakeup1(proc->parent);
+
+    // Pass abandoned children to init.
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->parent == proc) {
+            p->parent = initproc;
+            if (p->state == ZOMBIE)
+                wakeup1(initproc);
+        }
+    }
+
+    // Jump into the scheduler, never to return.
+    proc->state = ZOMBIE;
+    sched();
+    panic("zombie exit");
+}
+
+// Wait for a child process to exit and return its pid.
+// Return -1 if this process has no children.
+int wait(void)
+{
+    struct proc *p;
+    int havekids, pid;
+
+    acquire(&ptable.lock);
+    for (;;) {
+        // Scan through table looking for zombie children.
+        havekids = 0;
+        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+            if(p->parent != proc)
+                continue;
+            havekids = 1;
+            if(p->state == ZOMBIE) {
+                // Found one.
+                pid = p->pid;
+                kfree_pages((uint32_t)p->kstack, 1);
+                p->kstack = 0;
+                free_vm(p->pgdir);
+                p->pid = 0;
+                p->parent = 0;
+                p->name[0] = 0;
+                p->killed = 0;
+                p->state = UNUSED;
+                release(&ptable.lock);
+                return pid;
+            }
+        }
+
+        // No point waiting if we don't have any children.
+        if (!havekids || proc->killed) {
+            release(&ptable.lock);
+            return -1;
+        }
+
+        // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+        sleep(proc, &ptable.lock);  //DOC: wait-sleep
+    }
 }
 
 extern void swtch(struct context**, struct context*); 
@@ -154,6 +294,15 @@ void scheduler(void)
     }
 }
 
+// Give up the CPU for one scheduling round.
+void yield(void)
+{
+    acquire(&ptable.lock);  //DOC: yieldlock
+    proc->state = RUNNABLE;
+    sched();
+    release(&ptable.lock);
+}
+
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state.
 void sched(void)
@@ -197,64 +346,103 @@ void fork_ret(void)
     // Return to "caller", actually trapret (see allocproc).
 }
 
-static void wakeup1(void *chan)
+// Atomically release lock and sleep on chan.
+// Reacquires lock when awakened.
+void sleep(void *chan, struct spinlock *lk)
 {
-  struct proc *p;
+    if (proc == 0)
+        panic("sleep");
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
-      p->state = RUNNABLE;
+    if (lk == 0)
+        panic("sleep without lk");
+
+    // Must acquire ptable.lock in order to
+    // change p->state and then call sched.
+    // Once we hold ptable.lock, we can be
+    // guaranteed that we won't miss any wakeup
+    // (wakeup runs with ptable.lock locked),
+    // so it's okay to release lk.
+    if (lk != &ptable.lock) {  //DOC: sleeplock0
+        acquire(&ptable.lock);  //DOC: sleeplock1
+        release(lk);
+    }
+
+    // Go to sleep.
+    proc->chan = chan;
+    proc->state = SLEEPING;
+    sched();
+
+    // Tidy up.
+    proc->chan = 0;
+
+    // Reacquire original lock.
+    if (lk != &ptable.lock) {  //DOC: sleeplock2
+        release(&ptable.lock);
+        acquire(lk);
+    }
 }
 
 // Wake up all processes sleeping on chan.
 void wakeup(void *chan)
 {
-  acquire(&ptable.lock);
-  wakeup1(chan);
-  release(&ptable.lock);
+    acquire(&ptable.lock);
+    wakeup1(chan);
+    release(&ptable.lock);
 }
 
-// Exit the current process.  Does not return.
-// An exited process remains in the zombie state
-// until its parent calls wait() to find out it exited.
-void exit(void)
+// Kill the process with the given pid.
+// Process won't exit until it returns
+// to user space (see trap in trap.c).
+int kill(int pid)
 {
-  struct proc *p;
-  //int fd;
+    struct proc *p;
 
-  if(proc == initproc)
-    panic("init exiting");
-
-  // Close all open files.
-  //for(fd = 0; fd < NOFILE; fd++){
-    //if(proc->ofile[fd]){
-    //  fileclose(proc->ofile[fd]);
-    //  proc->ofile[fd] = 0;
-    //}
-  //}
-
-  //begin_op();
-  //iput(proc->cwd);
-  //end_op();
-  proc->cwd = 0;
-
-  acquire(&ptable.lock);
-
-  // Parent might be sleeping in wait().
-  wakeup1(proc->parent);
-
-  // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->parent == proc){
-      p->parent = initproc;
-      if(p->state == ZOMBIE)
-        wakeup1(initproc);
+    acquire(&ptable.lock);
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if(p->pid == pid) {
+            p->killed = 1;
+            // Wake process from sleep if necessary.
+            if(p->state == SLEEPING)
+                p->state = RUNNABLE;
+            release(&ptable.lock);
+            return 0;
+        }
     }
-  }
-
-  // Jump into the scheduler, never to return.
-  proc->state = ZOMBIE;
-  sched();
-  panic("zombie exit");
+    release(&ptable.lock);
+    return -1;
 }
 
+// Print a process listing to console.  For debugging.
+// Runs when user types ^P on console.
+// No lock to avoid wedging a stuck machine further.
+void procdump(void)
+{
+    // static char *states[] = {
+    //     [UNUSED]    "unused",
+    //     [EMBRYO]    "embryo",
+    //     [SLEEPING]  "sleep ",
+    //     [RUNNABLE]  "runble",
+    //     [RUNNING]   "run   ",
+    //     [ZOMBIE]    "zombie"
+    // };
+    // int i;
+    // struct proc *p;
+    // char *state;
+    // uint pc[10];
+
+    // for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    //     if(p->state == UNUSED)
+    //         continue;
+    //     if (p->state >= 0 && p->state < NELEM(states) && states[p->state])
+    //         state = states[p->state];
+    //     else
+    //         state = "???";
+    //     printk("%d %s %s", p->pid, state, p->name);
+    //     // if (p->state == SLEEPING) {
+    //     //     getcallerpcs((uint*)p->context->ebp+2, pc);
+    //     //     for (i=0; i<10 && pc[i] != 0; i++)
+    //     //         cprintk(" %p", pc[i]);
+    //     // }
+    //     printk("\n");
+    // }
+}
