@@ -15,6 +15,8 @@ extern pde_t kernel_pde[];
 extern char end[];
 extern int ismp;    // define at mp.c
 
+extern unsigned int MemorySizeInKB;
+
 void mpinit(void);
 void seginit(void);
 void lapicinit(void);
@@ -32,6 +34,9 @@ int main(void)
 {
     console_clear();
     printk("Begin init kernel...\n");
+
+    assert(MemorySizeInKB != 0 && "Memory size must success.");
+    printk("Detected memory size in kb: at 0x%p is 0x%x\n", &MemorySizeInKB, MemorySizeInKB);
 
     panic("test");
     pmm_init();

@@ -57,6 +57,7 @@ OBJECTS = \
 	trapasm.o\
 	vectors.o\
 	vm.o\
+	memorydetect.o\
 		  
 
 disk.img: bootblock kernel
@@ -64,9 +65,9 @@ disk.img: bootblock kernel
 	dd if=bootblock of=disk.img bs=512 count=1 conv=notrunc
 	dd if=kernel of=disk.img bs=512 count=2000 seek=1 conv=notrunc
 
-bootblock: bootasm.S bootmain.c 
-	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c bootmain.c
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c bootasm.S
+bootblock: boot/bootasm.S boot/bootmain.c 
+	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c boot/bootmain.c
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c boot/bootasm.S
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o bootblock.o bootasm.o bootmain.o
 	$(OBJDUMP) -S bootblock.o > bootblock.asm
 	$(OBJCOPY) -S -O binary -j .text bootblock.o bootblock

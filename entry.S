@@ -40,9 +40,18 @@ multiboot_header:
 .globl _start
 _start = V2P_WO(entry)
 
+.global MemorySizeInKB
+MemorySizeInKB: 
+.int 0x0
+
 # Entering xv6 on boot processor, with paging off.
 .globl entry
 entry:
+  # Detect memory size before turn on paging
+  call    ProbesMemory
+  movl    %eax, V2P_WO(MemorySizeInKB)
+  #movl   $0x64, 0x0010000c
+
   # Turn on page size extension for 4Mbyte pages
   movl    %cr4, %eax
   orl     $(CR4_PSE), %eax
