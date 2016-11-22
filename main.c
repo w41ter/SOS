@@ -11,6 +11,8 @@
 #include "vm.h"
 #include "x86.h"
 
+#include "physicmemory.h"
+
 extern pde_t kernel_pde[];
 extern char end[];
 extern int ismp;    // define at mp.c
@@ -27,7 +29,7 @@ void ioapic_init(void);
 void trap_vector_init(void);
 
 //__attribute__((noreturn))
-static void mpmain(void);
+// static void mpmain(void);
 void startothers(void);
 
 int main(void) 
@@ -35,121 +37,120 @@ int main(void)
     console_clear();
     printk("Begin init kernel...\n");
 
-    assert(MemorySizeInKB != 0 && "Memory size must success.");
-    printk("Detected memory size in kb: at 0x%p is 0x%x\n", &MemorySizeInKB, MemorySizeInKB);
+    PhysicMemoryInitialize();
 
     panic("test");
-    pmm_init();
-    kvm_init();
+    // pmm_init();
+    // kvm_init();
     
-    mpinit();
-    lapicinit();
-    seginit();
+    // mpinit();
+    // lapicinit();
+    // seginit();
 
-    pic_init();
-    ioapic_init();
-    console_init();
+    // pic_init();
+    // ioapic_init();
+    // console_init();
 
-    proc_init();
-    trap_vector_init();
+    // proc_init();
+    // trap_vector_init();
 
-    if(!ismp)
-       timer_init();   // uniprocessor timer
+    // if(!ismp)
+    //    timer_init();   // uniprocessor timer
     
-    startothers();   // start other processors
-    first_user_proc_init();
-    mpmain();
+    // startothers();   // start other processors
+    // first_user_proc_init();
+    // mpmain();
     return 0;
 }
 
-int cpunum(void);
+// int cpunum(void);
 
-extern struct cpu cpus[NCPU];
+// extern struct cpu cpus[NCPU];
 
-// Set up CPU's kernel segment descriptors.
-// Run once on entry on each CPU.
-void seginit(void)
-{
-    struct cpu *c;
+// // Set up CPU's kernel segment descriptors.
+// // Run once on entry on each CPU.
+// void seginit(void)
+// {
+//     struct cpu *c;
 
-    // Map "logical" addresses to virtual addresses using identity map.
-    // Cannot share a CODE descriptor for both kernel and user
-    // because it would have to have DPL_USR, but the CPU forbids
-    // an interrupt from CPL=0 to DPL=3.
-    c = &cpus[cpunum()];
-    c->gdt[SEG_KCODE] = SEG(STA_X|STA_R, 0, 0xffffffff, 0);
-    c->gdt[SEG_KDATA] = SEG(STA_W, 0, 0xffffffff, 0);
-    c->gdt[SEG_UCODE] = SEG(STA_X|STA_R, 0, 0xffffffff, DPL_USER);
-    c->gdt[SEG_UDATA] = SEG(STA_W, 0, 0xffffffff, DPL_USER);
+//     // Map "logical" addresses to virtual addresses using identity map.
+//     // Cannot share a CODE descriptor for both kernel and user
+//     // because it would have to have DPL_USR, but the CPU forbids
+//     // an interrupt from CPL=0 to DPL=3.
+//     c = &cpus[cpunum()];
+//     c->gdt[SEG_KCODE] = SEG(STA_X|STA_R, 0, 0xffffffff, 0);
+//     c->gdt[SEG_KDATA] = SEG(STA_W, 0, 0xffffffff, 0);
+//     c->gdt[SEG_UCODE] = SEG(STA_X|STA_R, 0, 0xffffffff, DPL_USER);
+//     c->gdt[SEG_UDATA] = SEG(STA_W, 0, 0xffffffff, DPL_USER);
 
-    // Map cpu and curproc -- these are private per cpu.
-    c->gdt[SEG_KCPU] = SEG(STA_W, &c->cpu, 8, 0);
+//     // Map cpu and curproc -- these are private per cpu.
+//     c->gdt[SEG_KCPU] = SEG(STA_W, &c->cpu, 8, 0);
 
-    lgdt(c->gdt, sizeof(c->gdt));
-    loadgs(SEG_KCPU << 3);
+//     lgdt(c->gdt, sizeof(c->gdt));
+//     loadgs(SEG_KCPU << 3);
 
-    // Initialize cpu-local storage.
-    cpu = c;
-    proc = 0;
-}
+//     // Initialize cpu-local storage.
+//     cpu = c;
+//     proc = 0;
+// }
 
-// Common CPU setup code.
-static void mpmain(void)
-{
-    printk("  mpmain: cpu%d: starting\n", cpu->id);
-    idt_init();       // load idt register
-    xchg(&cpu->started, 1); // tell startothers() we're up
-    hlt();
-    scheduler();     // start running processes 
-}
+// // Common CPU setup code.
+// static void mpmain(void)
+// {
+//     printk("  mpmain: cpu%d: starting\n", cpu->id);
+//     idt_init();       // load idt register
+//     xchg(&cpu->started, 1); // tell startothers() we're up
+//     hlt();
+//     scheduler();     // start running processes 
+// }
 
-// Other CPUs jump here from entryother.S.
-static void mpenter(void)
-{   
-    switch_kvm();
-    seginit();
-    lapicinit();
-    mpmain();
-}
+// // Other CPUs jump here from entryother.S.
+// static void mpenter(void)
+// {   
+//     switch_kvm();
+//     seginit();
+//     lapicinit();
+//     mpmain();
+// }
 
-pde_t entrypgdir[];  // For entry.S
-void lapicstartap(uint8_t apicid, uint32_t addr);
+// pde_t entrypgdir[];  // For entry.S
+// void lapicstartap(uint8_t apicid, uint32_t addr);
 
-// Start the non-boot (AP) processors.
-void startothers(void)
-{
-    extern uint8_t _binary_entryother_start[], _binary_entryother_size[];
-    uint8_t *code;
-    struct cpu *c;
-    char *stack;
+// // Start the non-boot (AP) processors.
+// void startothers(void)
+// {
+//     extern uint8_t _binary_entryother_start[], _binary_entryother_size[];
+//     uint8_t *code;
+//     struct cpu *c;
+//     char *stack;
 
-    // Write entry code to unused memory at 0x7000.
-    // The linker has placed the image of entryother.S in
-    // _binary_entryother_start.
-    code = P2V(0x7000);
-    memmove(code, _binary_entryother_start, (uint32_t)_binary_entryother_size);
+//     // Write entry code to unused memory at 0x7000.
+//     // The linker has placed the image of entryother.S in
+//     // _binary_entryother_start.
+//     code = P2V(0x7000);
+//     memmove(code, _binary_entryother_start, (uint32_t)_binary_entryother_size);
 
-    for(c = cpus; c < cpus+ncpu; c++){
-        if(c == cpus+cpunum())  // We've started already.
-        continue;
+//     for(c = cpus; c < cpus+ncpu; c++){
+//         if(c == cpus+cpunum())  // We've started already.
+//         continue;
 
-        // Tell entryother.S what stack to use, where to enter, and what
-        // pgdir to use. We cannot use kpgdir yet, because the AP processor
-        // is running in low  memory, so we use entrypgdir for the APs too.
-        stack = (char *)kalloc();
-        *(void**)(code-4) = stack + KSTACKSIZE;
-        *(void**)(code-8) = mpenter;
-        *(int**)(code-12) = (void *) V2P(entrypgdir);
+//         // Tell entryother.S what stack to use, where to enter, and what
+//         // pgdir to use. We cannot use kpgdir yet, because the AP processor
+//         // is running in low  memory, so we use entrypgdir for the APs too.
+//         stack = (char *)kalloc();
+//         *(void**)(code-4) = stack + KSTACKSIZE;
+//         *(void**)(code-8) = mpenter;
+//         *(int**)(code-12) = (void *) V2P(entrypgdir);
 
-        lapicstartap(c->id, V2P(code));
+//         lapicstartap(c->id, V2P(code));
 
-        // wait for cpu to finish mpmain()
-        printk("startothers: wait CPU%d start ...\n", c->id);
-        while(c->started == 0)
-            ;
-        printk("startothers: end wait CPU%d\n", c->id);
-    }
-}
+//         // wait for cpu to finish mpmain()
+//         printk("startothers: wait CPU%d start ...\n", c->id);
+//         while(c->started == 0)
+//             ;
+//         printk("startothers: end wait CPU%d\n", c->id);
+//     }
+// }
 
 // The boot page table used in entry.S and entryother.S.
 // Page directories (and page tables) must start on page boundaries,
@@ -162,4 +163,7 @@ pde_t entrypgdir[NPDENTRIES] = {
     [0] = (0) | PTE_P | PTE_W | PTE_PS,
     // Map VA's [KERNBASE, KERNBASE+4MB) to PA's [0, 4MB)
     [KERNEL_BASE>>PDX_SHIFT] = (0) | PTE_P | PTE_W | PTE_PS,
+    // FIXME: [4MB, 8MB)
+    [1] = (1 << PDX_SHIFT) | PTE_P | PTE_W | PTE_PS,
+    [769] = (1 << PDX_SHIFT) | PTE_P | PTE_W | PTE_PS,
 };

@@ -16,15 +16,15 @@ typedef int32_t size_t;
         (type*)((char*)__mptr - offsetof(type, member)); })
 #endif
 
-struct list_node {
-    struct list_node *prev;
-    struct list_node *next;
-    struct list *list;
+struct list_node_t {
+    struct list_node_t *prev;
+    struct list_node_t *next;
+    struct list_t *list;
 };
 
-struct list {
-    struct list_node *head;
-    struct list_node *tail;
+struct list_t {
+    struct list_node_t *head;
+    struct list_node_t *tail;
     size_t size;
 };
 
@@ -35,7 +35,7 @@ struct list {
 #define list_tail(list) ((list)->tail)
 #define list_size(list) ((list)->size)
 #define list_empty(list) (list_size(list) == 0)
-#define list_end() ((struct list_node *)(NULL))
+#define list_end() ((struct list_node_t *)(NULL))
 
 // node get
 #define list_node_prev(node) ((node)->prev)
@@ -43,35 +43,35 @@ struct list {
 
 // itertor
 #define list_for_each(tmpname, list)            \
-    for (struct list_node *tmpname = list_head(list);   \
+    for (struct list_node_t *tmpname = list_head(list);   \
         tmpname != list_end();                  \
         tmpname = list_node_next(tmpname))
 #define list_for_each_r(tmpname, list)          \
-    for (struct list_node *tmpname = list_tail(list);    \
+    for (struct list_node_t *tmpname = list_tail(list);    \
         tmpname != list_end();                  \
         tmpname = list_node_prev(tmpname))
 
-static inline void list_node_init(struct list_node *node) {
+static inline void list_node_init(struct list_node_t *node) {
     assert(node != NULL);
     node->prev = list_end();
     node->next = list_end();
     node->list = NULL;
 }
 
-static inline void list_init(struct list *list) {
+static inline void list_init(struct list_t *list) {
     assert(list != NULL);
     list->head = NULL;
     list->tail = NULL;
     list->size = 0;
 }
 
-static inline struct list_node *list_append(
-    struct list *list, struct list_node *node) {
+static inline struct list_node_t *list_append(
+    struct list_t *list, struct list_node_t *node) {
     assert(list != NULL && node != NULL);
     list_node_init(node);
     node->list = list;
     if (!list_empty(list)) {
-        struct list_node *tail = list_tail(list);
+        struct list_node_t *tail = list_tail(list);
         tail->next = node;
         node->prev = tail;
         list->tail = node;
@@ -83,13 +83,13 @@ static inline struct list_node *list_append(
     return node;
 }
 
-static inline struct list_node *list_prepend(
-    struct list *list, struct list_node *node) {
+static inline struct list_node_t *list_prepend(
+    struct list_t *list, struct list_node_t *node) {
     assert(list != NULL && node != NULL);
     list_node_init(node);
     node->list = list;
     if (!list_empty(list)) {
-        struct list_node *head = list_head(list);
+        struct list_node_t *head = list_head(list);
         head->prev = node;
         node->next = head;
         list->head = node;
@@ -102,11 +102,11 @@ static inline struct list_node *list_prepend(
 }
 
 // new node will be insert before at old node. 
-static inline struct list_node *list_insert(
-    struct list_node *old_node, struct list_node *new_node) {
+static inline struct list_node_t *list_insert(
+    struct list_node_t *old_node, struct list_node_t *new_node) {
     assert(old_node != NULL && new_node != NULL);
-    struct list *list = list_from_node(old_node);
-    struct list_node *head = list_head(list);
+    struct list_t *list = list_from_node(old_node);
+    struct list_node_t *head = list_head(list);
     list_node_init(new_node);
     if (head == old_node) {
         head->prev = new_node;
@@ -122,9 +122,9 @@ static inline struct list_node *list_insert(
     return new_node;
 }
 
-static inline struct list_node *list_remove(struct list_node *node) {
+static inline struct list_node_t *list_remove(struct list_node_t *node) {
     assert(node != NULL);
-    struct list *list = list_from_node(node);
+    struct list_t *list = list_from_node(node);
     if (list_size(list) == 1) {
         list_init(list);
         list->size = 1;
@@ -143,10 +143,10 @@ static inline struct list_node *list_remove(struct list_node *node) {
     return node;
 }
 
-static inline struct list_node *list_replace(
-    struct list_node *old_node, struct list_node *new_node) {
+static inline struct list_node_t *list_replace(
+    struct list_node_t *old_node, struct list_node_t *new_node) {
     assert(old_node != NULL && new_node != NULL);
-    struct list *list = list_from_node(old_node);
+    struct list_t *list = list_from_node(old_node);
     list_node_init(new_node);
     if (list_size(list) == 1) {
         list->head = new_node;
@@ -169,7 +169,7 @@ static inline struct list_node *list_replace(
     return old_node;
 }
 
-static inline void list_move(struct list *dest, struct list *src) {
+static inline void list_move(struct list_t *dest, struct list_t *src) {
     assert(dest != NULL && src != NULL);
     list_init(dest);
     dest->head = list_head(src);

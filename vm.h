@@ -32,7 +32,7 @@
 #define PTX_SHIFT        12      // offset of PTX in a linear address
 #define PDX_SHIFT        22      // offset of PDX in a linear address
 
-#define PGROUNDUP(sz)  (((sz)+PAGE_SIZE-1) & ~(PAGE_SIZE-1))
+#define PGROUNDUP(sz)  ((int)((sz)+PAGE_SIZE-1) & ~(PAGE_SIZE-1))
 #define PGROUNDDOWN(a) (((a)) & ~(PAGE_SIZE-1))
 
 // Page table/directory entry flags.
@@ -85,14 +85,14 @@ void kfree_pages(uint32_t va, uint32_t size);
 void ufree_pages(uint32_t va, uint32_t size);
 
 struct mem_block {
-    struct list_node node;
+    struct list_node_t node;
 };
 
 struct mem_block_desc {
     struct spinlock lock;
     uint32_t size;
     uint32_t total;
-    struct list free_list;
+    struct list_t free_list;
 };
 
 #define NBLOCKDESC  7

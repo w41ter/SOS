@@ -7,11 +7,6 @@
 
 int panicked = 0;
 
-static struct {
-  struct spinlock lock;
-  int locking;
-} cons_lock;
-
 #define BACKSPACE 0x100
 
 // VGA 的显示缓冲的起点是 0xB8000
@@ -40,10 +35,7 @@ void console_clear()
     uint8_t attribute_byte = (0 << 4) | (15 & 0x0F);
     uint16_t blank = 0x20 | (attribute_byte << 8);
 
-    int i, locking = cons_lock.locking;
-	
-	if (locking)
-		acquire(&cons_lock.lock);
+    int i;
 
     for (i = 0; i < 80 * 25; i++) {
           video_memory[i] = blank;
@@ -52,9 +44,6 @@ void console_clear()
     cursor_x = 0;
     cursor_y = 0;
     move_cursor();
-
-	if (locking)
-		release(&cons_lock.lock);
 }
 
 static void scroll()
@@ -142,10 +131,7 @@ void printk(const char *format, ...)
 	// 避免频繁创建临时变量，内核的栈很宝贵
 	static char buff[10240];
 	va_list args;
-	int i, locking = cons_lock.locking;
-
-	if (locking)
-		acquire(&cons_lock.lock);
+	int i;
 
 	va_start(args, format);
 	i = vsprintf(buff, format, args);
@@ -154,9 +140,6 @@ void printk(const char *format, ...)
 	buff[i] = '\0';
 
 	console_write(buff);
-
-	if (locking)
-		release(&cons_lock.lock);
 }
 
 void cprintk(
@@ -167,10 +150,7 @@ void cprintk(
 	// 避免频繁创建临时变量，内核的栈很宝贵
 	static char buff[10240];
 	va_list args;
-	int i, locking = cons_lock.locking;
-
-	if (locking)
-		acquire(&cons_lock.lock);
+	int i;
 
 	va_start(args, format);
 	i = vsprintf(buff, format, args);
@@ -179,9 +159,6 @@ void cprintk(
 	buff[i] = '\0';
 
 	console_write_color(buff, background, frontground);
-	
-	if (locking)
-		release(&cons_lock.lock);
 }
 
 #define is_digit(c)     ((c) >= '0' && (c) <= '9')
@@ -451,17 +428,8 @@ static int vsprintf(char *buff, const char *format, va_list args)
 	return (str -buff);
 }
 
-void pic_enable(int irq);
-void ioapic_enable(int irq, int cpunum);
-
 void console_init()
 {
-	init_lock(&cons_lock.lock, "console");
-
-	cons_lock.locking = 1;
-
-	pic_enable(IRQ_KBD);
-	ioapic_enable(IRQ_KBD, 0);
 }
 
 void consputc(int c)
@@ -605,7 +573,6 @@ void console_intr(int (*getc)(void))
 {
 	int c;//, doprocdump = 0;
 
-	acquire(&cons_lock.lock);
 	while ((c = getc()) >= 0) {
 		switch(c) {
 		// case C('P'):  // Process listing.
@@ -638,7 +605,6 @@ void console_intr(int (*getc)(void))
 		break;
 		}
 	}
-	release(&cons_lock.lock);
 	// if(doprocdump) {
 	// 	procdump();  // now call procdump() wo. cons_lock.lock held
 	// }

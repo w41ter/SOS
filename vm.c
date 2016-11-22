@@ -18,7 +18,8 @@ struct arena {
     int G;  // if G : size = pages else: size = mem_blocks
 };
 
-struct mem_block_desc kblocks[NBLOCKDESC];
+// TODO:
+struct mem_block_desc kblocks[0];//NBLOCKDESC];
 
 // 设备内存空间前一页用于自映射
 #define SELFMAP (DEVSPACE - PAGE_SIZE)
@@ -531,7 +532,7 @@ int sys_malloc(uint32_t size)
         release(&descs[idx].lock);
         return 0;
     }
-    struct list_node *node = list_head(&(descs[idx].free_list));
+    struct list_node_t *node = list_head(&(descs[idx].free_list));
     block = list_get(node, struct mem_block, node);
     memset(block, 0, descs[idx].size);
     a = block_to_arena(block);

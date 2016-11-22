@@ -37,27 +37,12 @@ ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
 
 OBJECTS = \
-	bitmap.o\
 	console.o\
 	debug.o\
-	ioapic.o\
-	lapic.o\
 	main.o\
-	memory.o\
-	mp.o\
-	picirq.o\
-	proc.o\
 	string.o\
-	spinlock.o\
-	switch.o\
-	syscall.o\
-	sysproc.o\
-	timer.o\
-	trap.o\
-	trapasm.o\
-	vectors.o\
-	vm.o\
 	memorydetect.o\
+	physicmemory.o\
 		  
 
 disk.img: bootblock kernel
@@ -119,7 +104,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 ifndef CPUS
 CPUS := 2
 endif
-QEMUOPTS = -drive file=disk.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
+QEMUOPTS = -drive file=disk.img,index=0,media=disk,format=raw -smp $(CPUS) -m 256 $(QEMUEXTRA)
 
 qemu: disk.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)
