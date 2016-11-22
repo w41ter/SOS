@@ -32,6 +32,7 @@
 *.dSYM/
 *.su
 *.d
+*.asm
 
 target
 *.img
