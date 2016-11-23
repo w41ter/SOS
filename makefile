@@ -29,10 +29,11 @@ AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
-CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -std=gnu99
+CFLAGS = -gstabs -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -std=gnu99
 #CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -fvar-tracking -fvar-tracking-assignments -O0 -g -Wall -MD -gdwarf-2 -m32 -Werror -fno-omit-frame-pointer
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
-ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
+ASFLAGS = -gstabs -m32  -Wa,-divide # -gdwarf-2
+
 # FreeBSD ld wants ``elf_i386_fbsd''
 LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
 
@@ -43,6 +44,11 @@ OBJECTS = \
 	string.o\
 	memorydetect.o\
 	physicmemory.o\
+	picirq.o\
+	vectors.o\
+	trap.o\
+	trapasm.o\
+	clock.o\
 		  
 
 disk.img: bootblock kernel
@@ -70,8 +76,8 @@ initcode: initcode.S
 	$(OBJCOPY) -S -O binary initcode.out initcode
 	$(OBJDUMP) -S initcode.o > initcode.asm
 
-kernel: $(OBJECTS) entry.o entryother initcode kernel.ld
-	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJECTS)  -b binary entryother initcode
+kernel: $(OBJECTS) entry.o   kernel.ld
+	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJECTS)  -b binary  
 	$(OBJDUMP) -S kernel > kernel.asm
 	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
 

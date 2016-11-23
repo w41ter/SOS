@@ -1,8 +1,8 @@
 #include "flags.h"
 
-  # vectors.S sends all traps here.
-.globl all_traps
-all_traps:
+# vectors.S sends all traps here.
+.globl AllTraps
+AllTraps:
   # Build trap frame.
   pushl %ds
   pushl %es
@@ -18,15 +18,15 @@ all_traps:
   # movw %ax, %fs
   # movw %ax, %gs
 
-  # Call trap(tf), where tf=%esp
+  # Call Trap(tf), where tf=%esp
   pushl %esp
-  call trap
+  call Trap
   addl $4, %esp
-  jmp trap_ret
+  jmp TrapRet
 
-  # Return falls through to trap_ret...
-.globl trap_ret
-trap_ret:
+  # Return falls through to TrapRet...
+.globl TrapRet
+TrapRet:
   popal
   popl %gs
   popl %fs

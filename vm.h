@@ -1,10 +1,8 @@
 #ifndef _VM_H_
 #define _VM_H_
 
-#include "bitmap.h"
 #include "list.h"
 #include "types.h"
-#include "spinlock.h"
 
 // A virtual address 'la' has a three-part structure as follows:
 //
@@ -62,44 +60,5 @@ typedef uint32_t pte_t;
 
 // 页掩码，用于 4KB 对齐
 #define PAGE_MASK      0xFFFFF000
-
-struct virtual_addr {
-    bitmap bitmap;
-    uint32_t start;
-};
-
-struct proc;
-void switch_uvm(struct proc *p);
-pde_t *setup_kvm(void);
-void switch_kvm(void);
-void kvm_init(void);
-void init_uvm(pde_t *pgdir, char *init, uint32_t sz);
-pde_t *copy_uvm(pde_t *pgdir);
-void free_vm(pde_t *pgdir);
-
-uint32_t kalloc(void);
-uint32_t kalloc_pages(uint32_t cnt);
-uint32_t ualloc(void);
-uint32_t ualloc_pages(uint32_t cnt);
-void kfree_pages(uint32_t va, uint32_t size);
-void ufree_pages(uint32_t va, uint32_t size);
-
-struct mem_block {
-    struct list_node_t node;
-};
-
-struct mem_block_desc {
-    struct spinlock lock;
-    uint32_t size;
-    uint32_t total;
-    struct list_t free_list;
-};
-
-#define NBLOCKDESC  7
-
-int sys_malloc(uint32_t size);
-int sys_free(void *ptr);
-
-void block_desc_init(struct mem_block_desc *desc);
 
 #endif 

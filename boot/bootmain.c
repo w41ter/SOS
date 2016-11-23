@@ -15,12 +15,12 @@ void read_segment(uint8_t *, uint32_t, uint32_t);
 
 void bootmain(void)
 {
-	struct elfhdr *elf;
-	struct proghdr *ph, *eph;
+	ELFHeader *elf;
+	ProgramHeader *ph, *eph;
 	void (*entry)(void);
 	uint8_t *pa;
 
-	elf = (struct elfhdr *)0x10000; // scratch space
+	elf = (ELFHeader *)0x10000; // scratch space
 
 	// Read 1st page off disk
 	read_segment((uint8_t *)elf, 4096, 0);
@@ -30,7 +30,7 @@ void bootmain(void)
 		return; // let bootasm.S handle error
 
 	// Load each program segment (ignores ph flags).
-	ph = (struct proghdr *)((uint8_t *)elf + elf->phoff);
+	ph = (ProgramHeader *)((uint8_t *)elf + elf->phoff);
 	eph = ph + elf->phnum;
 	for (; ph < eph; ph++)
 	{

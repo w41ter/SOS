@@ -4,8 +4,6 @@
 #include "types.h"
 #include "debug.h"
 
-typedef int32_t size_t;
-
 #ifndef offsetof
 #define offsetof(type, member) ((size_t) &((type*)0)->member)
 #endif

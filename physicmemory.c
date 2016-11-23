@@ -104,7 +104,7 @@ static void FreePhysicMemoryInitialize(uint32_t *base, uint32_t size)
 
 void PhysicMemoryInitialize(void)
 {
-    printk("Physic memory initialize...\n");
+    printk("++ setup physic memory manager\n");
 
     assert(MemorySizeInKB != 0 && "Memory size must success.");
 

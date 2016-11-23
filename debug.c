@@ -98,12 +98,12 @@ extern int panicked;		// console.c
 
 /* debug information about a particular instruction pointer */
 struct eip_debug_info {
-    const char *eip_file;           // source code filename for eip
-    int eip_line;                   // source code line number for eip
-    const char *eip_fn_name;        // name of function containing eip
-    int eip_fn_namelen;             // length of function's name
-    uint32_t eip_fn_addr;          // start address of function
-    int eip_fn_narg;                // number of function arguments
+    const char *eip_file;                   // source code filename for eip
+    int eip_line;                           // source code line number for eip
+    const char *eip_fn_name;                // name of function containing eip
+    int eip_fn_namelen;                     // length of function's name
+    uint32_t eip_fn_addr;                  // start address of function
+    int eip_fn_narg;                        // number of function arguments
 };
 
 /* *
@@ -214,12 +214,10 @@ int debug_info_eip(uint32_t addr, struct eip_debug_info *info)
     const struct stab *stabs, *stab_end;
     const char *stabstr, *stabstr_end;
 
-    info->eip_file = "<unknown>";
-    info->eip_line = 0;
-    info->eip_fn_name = "<unknown>";
+    info->eip_file = "<unknow>";
+    info->eip_fn_name = "<unknow>";
     info->eip_fn_namelen = 9;
     info->eip_fn_addr = addr;
-    info->eip_fn_narg = 0;
 
     stabs = __STAB_BEGIN__;
     stab_end = __STAB_END__;
@@ -239,9 +237,11 @@ int debug_info_eip(uint32_t addr, struct eip_debug_info *info)
     // Search the entire set of stabs for the source file (type N_SO).
     int lfile = 0, rfile = (stab_end - stabs) - 1;
     stab_binsearch(stabs, &lfile, &rfile, N_SO, addr);
-    if (lfile == 0)
+    if (lfile == 0) 
         return -1;
 
+    // Search within that file's stabs for the function definition
+    // (N_FUN).
     // Search within that file's stabs for the function definition
     // (N_FUN).
     int lfun = lfile, rfun = rfile;
@@ -315,14 +315,13 @@ void print_debug_info(uint32_t eip)
         printk("<unknow>: -- 0x%08x --\n", eip);
     }
     else {
-        char fnname[256];
+        char fnname[256] = "<unknow>";
         int j;
         for (j = 0; j < info.eip_fn_namelen; j ++) {
             fnname[j] = info.eip_fn_name[j];
         }
         fnname[j] = '\0';
-        printk("%s:%d: %s+%d\n", info.eip_file, info.eip_line,
-                fnname, eip - info.eip_fn_addr);
+        printk("%s: %s+0x%x\n", info.eip_file, fnname, eip - info.eip_fn_addr);
     }
 }
 
@@ -360,10 +359,10 @@ void panic(const char *msg)
     
 	printk("*** System panic: %s\n", msg);
 	print_stack_frame();
+    print_current_status();
 	printk("***\n");
 	
 	// 致命错误发生后打印栈信息后停止在这里
-	panicked = 1; // freeze other CPU
 	while(1) {
 		hlt();
 	}
@@ -381,11 +380,11 @@ void print_current_status(void)
 			   : "=m"(reg1), "=m"(reg2), "=m"(reg3), "=m"(reg4));
 
 	// 打印当前的运行级别
-	printk("%d: @ring %d\n", round, reg1 & 0x3);
-	printk("%d:  cs = %x\n", round, reg1);
-	printk("%d:  ds = %x\n", round, reg2);
-	printk("%d:  es = %x\n", round, reg3);
-	printk("%d:  ss = %x\n", round, reg4);
+	printk("    %d: @ring %d\n", round, reg1 & 0x3);
+	printk("    %d:  cs = 0x%.4x\n", round, reg1);
+	printk("    %d:  ds = 0x%.4x\n", round, reg2);
+	printk("    %d:  es = 0x%.4x\n", round, reg3);
+	printk("    %d:  ss = 0x%.4x\n", round, reg4);
 	++round;
 }
 

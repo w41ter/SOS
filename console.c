@@ -2,10 +2,7 @@
 #include "memlayout.h"
 #include "traps.h"
 #include "string.h"
-#include "spinlock.h"
 #include "x86.h"
-
-int panicked = 0;
 
 #define BACKSPACE 0x100
 
@@ -432,13 +429,8 @@ void console_init()
 {
 }
 
-void consputc(int c)
+void console_putc(int c)
 {
-	if(panicked){
-		cli();
-		for(;;)
-		;
-	}
 
 	// if(c == BACKSPACE){
 	// 	uartputc('\b'); uartputc(' '); uartputc('\b');
@@ -569,33 +561,30 @@ struct {
   uint32_t e;  // Edit index
 } input;
 
-void console_intr(int (*getc)(void))
+void ConsoleInterupt(int (*getc)(void))
 {
-	int c;//, doprocdump = 0;
+	int c;
 
 	while ((c = getc()) >= 0) {
 		switch(c) {
-		// case C('P'):  // Process listing.
-		// doprocdump = 1;   // procdump() locks cons_lock.lock indirectly; invoke later
-		// break;
 		case C('U'):  // Kill line.
 		while (input.e != input.w &&
 				input.buf[(input.e-1) % INPUT_BUF] != '\n') {
 			input.e--;
-			consputc(BACKSPACE);
+			console_putc(BACKSPACE);
 		}
 		break;
 		case C('H'): case '\x7f':  // Backspace
 		if (input.e != input.w){
 			input.e--;
-			consputc(BACKSPACE);
+			console_putc(BACKSPACE);
 		}
 		break;
 		default:
 		if (c != 0 && input.e-input.r < INPUT_BUF) {
 			c = (c == '\r') ? '\n' : c;
 			input.buf[input.e++ % INPUT_BUF] = c;
-			consputc(c);
+			console_putc(c);
 			if (c == '\n' || c == C('D') 
 				|| input.e == input.r+INPUT_BUF) {
 				input.w = input.e;
@@ -605,12 +594,9 @@ void console_intr(int (*getc)(void))
 		break;
 		}
 	}
-	// if(doprocdump) {
-	// 	procdump();  // now call procdump() wo. cons_lock.lock held
-	// }
 }
 
-static int kbd_getc(void)
+static int KeyboardGetChar(void)
 {
 	static uint32_t shift;
 	static uint8_t *charcode[4] = {
@@ -651,7 +637,12 @@ static int kbd_getc(void)
 	return c;
 }
 
-void kbd_intr(void)
+void KeyboardInterupt(void)
 {
-	console_intr(kbd_getc);
+	ConsoleInterupt(KeyboardGetChar);
+}
+
+void KeyboardInitialize(void)
+{
+	PICEnable(IRQ_KBD);
 }

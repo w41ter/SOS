@@ -1,12 +1,10 @@
 #include "console.h"
+#include "clock.h"
 #include "debug.h"
 #include "flags.h"
 #include "traps.h"
 #include "types.h"
-#include "proc.h"
 #include "segment.h"
-#include "spinlock.h"
-#include "syscall.h"
 #include "x86.h"
 
 #define IDT_DESC_CNT 0xff
@@ -27,27 +25,58 @@
 #define TRAP_DESC_ATTR_DPL3 \
 		((IDT_DESC_P << 7) + (IDT_DESC_DPL3 << 5) + TRAP_DESC_32_TYPE)
 
-typedef void *intr_handler;
+typedef void *InteruptHandle;
 
-typedef struct gate_desc {
+typedef struct GateDescriptor {
     uint16_t func_offset_low16;
     uint16_t selector;
     uint8_t  receved;
     uint8_t  attribute;
     uint16_t func_offset_high16;
-} gate_desc;
+} GateDescriptor;
 
 extern void trap_ret(void);
 extern void lapiceoi(void);
 extern void kbd_intr(void);
 
-static gate_desc idt[IDT_DESC_CNT];
-extern intr_handler vectors[];
-struct spinlock tickslock;
-uint32_t ticks;
+static GateDescriptor idt[IDT_DESC_CNT];
+extern InteruptHandle vectors[];
 
-static void make_trap_vector(
-    gate_desc *desc, uint8_t attr, intr_handler func)
+static const char * TrapName(int trapno) {
+    static const char * const ExcNames[] = {
+        "Divide error",
+        "Debug",
+        "Non-Maskable Interrupt",
+        "Breakpoint",
+        "Overflow",
+        "BOUND Range Exceeded",
+        "Invalid Opcode",
+        "Device Not Available",
+        "Double Fault",
+        "Coprocessor Segment Overrun",
+        "Invalid TSS",
+        "Segment Not Present",
+        "Stack Fault",
+        "General Protection",
+        "Page Fault",
+        "(unknown trap)",
+        "x87 FPU Floating-Point Error",
+        "Alignment Check",
+        "Machine-Check",
+        "SIMD Floating-Point Exception"
+    };
+
+    if (trapno < sizeof(ExcNames)/sizeof(const char * const)) {
+        return ExcNames[trapno];
+    }
+    if (trapno >= T_IRQ0 && trapno < T_IRQ0 + 16) {
+        return "Hardware Interrupt";
+    }
+    return "(unknown trap)";
+}
+
+static void MakeTrapVecor(
+    GateDescriptor *desc, uint8_t attr, InteruptHandle func)
 {
     desc->func_offset_high16 = ((uint32_t)func & 0xffff0000) >> 16;
     desc->func_offset_low16 = (uint32_t)func & 0x0000ffff;
@@ -56,99 +85,126 @@ static void make_trap_vector(
     desc->attribute = attr;
 }
 
-void trap_vector_init(void)
+void TrapVectrosInitialize(void)
 {
-    int i;
-    for (i = 0; i < IDT_DESC_CNT; ++i) {
-        make_trap_vector(&idt[i], IDT_DESC_ATTR_DPL0, vectors[i]);
+    for (int i = 0; i < IDT_DESC_CNT; ++i) {
+        MakeTrapVecor(&idt[i], IDT_DESC_ATTR_DPL0, vectors[i]);
     }
-	make_trap_vector(&idt[T_SYSCALL],
+	MakeTrapVecor(&idt[T_SYSCALL],
 		TRAP_DESC_ATTR_DPL3, vectors[T_SYSCALL]);
-
-	init_lock(&tickslock, "ticks");
 }
 
-void idt_init() 
+void IDTInitialize(void) 
 {
+    printk("++ setup interrupt descriptor table\n");
     lidt(idt, sizeof(idt));
 }
 
-void trap(struct trap_frame *tf)
+static const char *IA32flags[] = {
+    "CF", NULL, "PF", NULL, "AF", NULL, "ZF", "SF",
+    "TF", "IF", "DF", "OF", NULL, NULL, "NT", NULL,
+    "RF", "VM", "AC", "VIF", "VIP", "ID", NULL, NULL,
+};
+
+/* trap_in_kernel - test if trap happened in kernel */
+static bool IsTrapInKernel(TrapFrame *tf) 
 {
-	// printk("vector: %d\n", tf->trapno);
-    assert(tf->trapno != T_PGFLT);
+    return (tf->cs == (uint16_t)SEG_KCODE << 3);
+}
 
-	if(tf->trapno == T_SYSCALL){
-		if(proc->killed)
-		  exit();
-		proc->tf = tf;
-		syscall();
-		if(proc->killed)
-		  exit();
-		return;
-	}
+static void PrintRegs(TrapFrame *tf) 
+{
+    printk("  edi  0x%08x\n", tf->edi);
+    printk("  esi  0x%08x\n", tf->esi);
+    printk("  ebp  0x%08x\n", tf->ebp);
+    printk("  oesp 0x%08x\n", tf->oesp);
+    printk("  ebx  0x%08x\n", tf->ebx);
+    printk("  edx  0x%08x\n", tf->edx);
+    printk("  ecx  0x%08x\n", tf->ecx);
+    printk("  eax  0x%08x\n", tf->eax);
+}
 
-	switch(tf->trapno){
-	case T_IRQ0 + IRQ_TIMER:
-		if(cpu->id == 0){
-		  acquire(&tickslock);
-		  ticks++;
-		  //wakeup(&ticks);
-		  release(&tickslock);
-		}
-		lapiceoi();
-		break;
-	case T_IRQ0 + IRQ_IDE:
-		//ideintr();
-		lapiceoi();
-		break;
-	case T_IRQ0 + IRQ_IDE+1:
-		// Bochs generates spurious IDE1 interrupts.
-		break;
-	case T_IRQ0 + IRQ_KBD:
-		kbd_intr();
-		lapiceoi();
-		break;
-	case T_IRQ0 + IRQ_COM1:
-		//uartintr();
-		lapiceoi();
-		break;
-	case T_IRQ0 + 7:
-	case T_IRQ0 + IRQ_SPURIOUS:
-		printk("cpu%d: spurious interrupt at %x:%x\n",
-		        cpu->id, tf->cs, tf->eip);
-		lapiceoi();
-		break;
+void PrintTrapFrame(TrapFrame *tf) 
+{
+    printk("trapframe at %p\n", tf);
+    PrintRegs(tf);
+    printk("  ds   0x----%04x\n", tf->ds);
+    printk("  es   0x----%04x\n", tf->es);
+    printk("  fs   0x----%04x\n", tf->fs);
+    printk("  gs   0x----%04x\n", tf->gs);
+    printk("  trap 0x%08x %s\n", tf->trapno, TrapName(tf->trapno));
+    printk("  err  0x%08x\n", tf->err);
+    printk("  eip  0x%08x\n", tf->eip);
+    printk("  cs   0x----%04x\n", tf->cs);
+    printk("  flag 0x%08x ", tf->eflags);
 
-	default:
-		// if(proc == 0 || (tf->cs&3) == 0){
-		//   // In kernel, it must be our mistake.
-		//   cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
-		//           tf->trapno, cpu->id, tf->eip, rcr2());
-		//   panic("trap");
-		// }
-		// // In user space, assume process misbehaved.
-		// cprintf("pid %d %s: trap %d err %d on cpu %d "
-		//         "eip 0x%x addr 0x%x--kill proc\n",
-		//         proc->pid, proc->name, tf->trapno, tf->err, cpu->id, tf->eip,
-		//         rcr2());
-		// proc->killed = 1;
-		break;
-	}
+    for (int i = 0, j = 1; i < sizeof(IA32flags) / sizeof(IA32flags[0]); i ++, j <<= 1) {
+        if ((tf->eflags & j) && IA32flags[i] != NULL) {
+            printk("%s,", IA32flags[i]);
+        }
+    }
+    printk("IOPL=%d\n", (tf->eflags & FL_IOPL_MASK) >> 12);
 
-	// Force process exit if it has been killed and is in user space.
-	// (If it is still executing in the kernel, let it keep running
-// 	// until it gets to the regular system call return.)
-//   if(proc && proc->killed && (tf->cs&3) == DPL_USER)
-// 		exit();
+    if (!IsTrapInKernel(tf)) {
+        printk("  esp  0x%08x\n", tf->esp);
+        printk("  ss   0x----%04x\n", tf->ss);
+    }
+}
 
-// 	// Force process to give up CPU on clock tick.
-// 	// If interrupts were on while locks held, would need to check nlock.
-//   if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
-// 		yield();
+/* DispatchTrap - dispatch based on what type of trap occurred */
+static void DispatchTrap(TrapFrame *tf) 
+{
+    switch (tf->trapno) {
+    case T_IRQ0 + IRQ_TIMER:
+        ClockInterupt();
+        break;
+    case T_IRQ0 + IRQ_COM1:
+        //c = cons_getc();
+        //printk("serial [%03d] %c\n", c, c);
+        break;
+    case T_IRQ0 + IRQ_KBD:
+        KeyboardInterupt();
+        break;
+    // case T_SWITCH_TOU:
+    //     if (tf->cs != USER_CS) {
+    //         switchk2u = *tf;
+    //         switchk2u.cs = USER_CS;
+    //         switchk2u.ds = switchk2u.es = switchk2u.ss = USER_DS;
+    //         switchk2u.esp = (uint32_t)tf + sizeof(struct trapframe) - 8;
+		
+    //         // set eflags, make sure ucore can use io under user mode.
+    //         // if CPL > IOPL, then cpu will generate a general protection.
+    //         switchk2u.eflags |= FL_IOPL_MASK;
+		
+    //         // set temporary stack
+    //         // then iret will jump to the right stack
+    //         *((uint32_t *)tf - 1) = (uint32_t)&switchk2u;
+    //     }
+    //     break;
+    // case T_SWITCH_TOK:
+    //     if (tf->cs != KERNEL_CS) {
+    //         tf->cs = KERNEL_CS;
+    //         tf->ds = tf->es = KERNEL_DS;
+    //         tf->eflags &= ~FL_IOPL_MASK;
+    //         switchu2k = (struct trapframe *)(tf->esp - (sizeof(struct trapframe) - 8));
+    //         memmove(switchu2k, tf, sizeof(struct trapframe) - 8);
+    //         *((uint32_t *)tf - 1) = (uint32_t)switchu2k;
+    //     }
+    //     break;
+    case T_IRQ0 + IRQ_IDE1:
+    case T_IRQ0 + IRQ_IDE2:
+        /* do nothing */
+        break;
+    default:
+        // in kernel, it must be a mistake
+        if ((tf->cs & 3) == 0) {
+            PrintTrapFrame(tf);
+            panic("unexpected trap in kernel.\n");
+        }
+    }
+}
 
-// 	// Check if the process has been killed since we yielded
-//   if(proc && proc->killed && (tf->cs&3) == DPL_USER)
-// 		exit();
-	
+void Trap(TrapFrame *tf) 
+{
+	DispatchTrap(tf);
 }

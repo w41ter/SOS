@@ -5,7 +5,7 @@ ENTRY(_start)
 SECTIONS
 {
 	/* Link the kernel at this address: "." means the current address */
-        /* Must be equal to KERNLINK */
+    /* Must be equal to KERNLINK */
 	. = 0xc0100000;
 
 	.text : AT(0x100000) {
@@ -34,7 +34,7 @@ SECTIONS
 		BYTE(0)		/* Force the linker to allocate space
 				   for this section */
 	}
-
+	
 	/* Adjust the address for the data segment to the next page */
 	. = ALIGN(0x1000);
 

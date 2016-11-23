@@ -35,4 +35,7 @@ void cprintk(real_color_t, real_color_t, const char *, ...);
 void console_clear(void);
 void console_init(void);
 
+void KeyboardInterupt(void);
+void KeyboardInitialize(void);
+
 #endif
