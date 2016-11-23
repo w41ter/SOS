@@ -18,9 +18,8 @@
 # 	boot
 # }
 
-#include "asm.h"
 #include "flags.h"
-#include "memlayout.h"
+#include "mm/memlayout.h"
 #include "param.h"
 
 # Multiboot header.  Data to direct multiboot loader.

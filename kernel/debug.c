@@ -1,8 +1,8 @@
-#include "console.h"
 #include "debug.h"
 #include "flags.h"
 #include "types.h"
 #include "x86.h"
+#include "driver/console.h"
 
 #define ELF32_ST_TYPE(i) ((i)&0xf)
 

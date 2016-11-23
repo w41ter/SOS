@@ -1,12 +1,12 @@
-#include "console.h"
 #include "debug.h"
 #include "types.h"
-#include "traps.h"
-#include "memlayout.h"
 #include "vm.h"
-#include "physicmemory.h"
-#include "clock.h"
 #include "x86.h"
+#include "driver/console.h"
+#include "driver/clock.h"
+#include "trap/traps.h"
+#include "mm/memlayout.h"
+#include "mm/physicmemory.h"
 
 extern char end[];
 

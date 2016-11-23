@@ -1,13 +1,4 @@
 
-# Try to infer the correct TOOLPREFIX if not set
-ifndef TOOLPREFIX
-TOOLPREFIX := $(shell if objdump -i 2>&1 | grep 'elf32-i386' >/dev/null 2>&1; \
-	then echo ''; \
-	else echo "***" 1>&2; \
-	echo "*** Error: Couldn't find an i386-*-elf version of GCC/binutils." 1>&2; \
-	echo "***" 1>&2; exit 1; fi)
-endif
-
 # Try to infer the correct QEMU
 ifndef QEMU
 QEMU = $(shell if which qemu > /dev/null; \
@@ -24,82 +15,40 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
-CC = $(TOOLPREFIX)gcc
-AS = $(TOOLPREFIX)gas
-LD = $(TOOLPREFIX)ld
-OBJCOPY = $(TOOLPREFIX)objcopy
-OBJDUMP = $(TOOLPREFIX)objdump
-CFLAGS = -gstabs -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -std=gnu99
+
+# Try to infer the correct TOOLPREFIX if not set
+ifndef TOOLPREFIX
+TOOLPREFIX := $(shell if objdump -i 2>&1 | grep 'elf32-i386' >/dev/null 2>&1; \
+	then echo ''; \
+	else echo "***" 1>&2; \
+	echo "*** Error: Couldn't find an i386-*-elf version of GCC/binutils." 1>&2; \
+	echo "***" 1>&2; exit 1; fi)
+endif
+
+export CC = $(TOOLPREFIX)gcc
+export AS = $(TOOLPREFIX)gas
+export LD = $(TOOLPREFIX)ld
+export OBJCOPY = $(TOOLPREFIX)objcopy
+export OBJDUMP = $(TOOLPREFIX)objdump
+export CFLAGS = -gstabs -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -std=gnu99
 #CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -fvar-tracking -fvar-tracking-assignments -O0 -g -Wall -MD -gdwarf-2 -m32 -Werror -fno-omit-frame-pointer
-CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
-ASFLAGS = -gstabs -m32  -Wa,-divide # -gdwarf-2
+export CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+export ASFLAGS = -gstabs -m32  -Wa,-divide # -gdwarf-2
 
 # FreeBSD ld wants ``elf_i386_fbsd''
-LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
+export LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
 
-OBJECTS = \
-	console.o\
-	debug.o\
-	main.o\
-	string.o\
-	memorydetect.o\
-	physicmemory.o\
-	picirq.o\
-	vectors.o\
-	trap.o\
-	trapasm.o\
-	clock.o\
-		  
+VPATH = ./boot ./kernel
 
-disk.img: bootblock kernel
+disk.img: boot kernel
+	@echo "Building bootloader"
+	make -C ./boot
+	@echo "Building kernel"
+	make -C ./kernel kernel
+	@echo "Building image file"
 	dd if=/dev/zero of=disk.img bs=512 count=10000
-	dd if=bootblock of=disk.img bs=512 count=1 conv=notrunc
-	dd if=kernel of=disk.img bs=512 count=2000 seek=1 conv=notrunc
-
-bootblock: boot/bootasm.S boot/bootmain.c 
-	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c boot/bootmain.c
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c boot/bootasm.S
-	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o bootblock.o bootasm.o bootmain.o
-	$(OBJDUMP) -S bootblock.o > bootblock.asm
-	$(OBJCOPY) -S -O binary -j .text bootblock.o bootblock
-	./sign.pl bootblock
-
-entryother: entryother.S
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c entryother.S
-	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o bootblockother.o entryother.o
-	$(OBJCOPY) -S -O binary -j .text bootblockother.o entryother
-	$(OBJDUMP) -S bootblockother.o > entryother.asm
-
-initcode: initcode.S
-	$(CC) $(CFLAGS) -nostdinc -I. -c initcode.S
-	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o initcode.out initcode.o
-	$(OBJCOPY) -S -O binary initcode.out initcode
-	$(OBJDUMP) -S initcode.o > initcode.asm
-
-kernel: $(OBJECTS) entry.o   kernel.ld
-	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJECTS)  -b binary  
-	$(OBJDUMP) -S kernel > kernel.asm
-	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
-
-vectors.S: vectors.pl
-	perl vectors.pl > vectors.S
-
-%.d: %.c
-	$(CC) -MM $<
-
--include *.d
-
-.PHONY: clean
-clean: 
-	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
-	*.o *.d *.asm *.sym vectors.S bootblock kernel disk.img \
-	.gdbinit entryother initcode initcode.out \
-
-# run in emulators
-
-bochs : disk.img
-	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
-	bochs -q
+	dd if=boot/bootblock of=disk.img bs=512 count=1 conv=notrunc
+	dd if=kernel/kernel of=disk.img bs=512 count=2000 seek=1 conv=notrunc
 
 # try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)
@@ -107,6 +56,7 @@ GDBPORT = $(shell expr `id -u` % 5000 + 25000)
 QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
+	
 ifndef CPUS
 CPUS := 2
 endif
@@ -128,3 +78,9 @@ qemu-gdb: disk.img .gdbinit
 qemu-nox-gdb: disk.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
+
+.PHONY: clean
+clean: 
+	rm -f disk.img .gdbinit 
+	make -C ./kernel clean
+	make -C ./boot clean

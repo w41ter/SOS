@@ -1,7 +1,7 @@
 #ifndef _VM_H_
 #define _VM_H_
 
-#include "list.h"
+#include "libs/list.h"
 #include "types.h"
 
 // A virtual address 'la' has a three-part structure as follows:

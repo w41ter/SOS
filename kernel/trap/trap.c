@@ -1,11 +1,11 @@
-#include "console.h"
-#include "clock.h"
 #include "debug.h"
 #include "flags.h"
-#include "traps.h"
 #include "types.h"
 #include "segment.h"
 #include "x86.h"
+#include "driver/console.h"
+#include "driver/clock.h"
+#include "trap/traps.h"
 
 #define IDT_DESC_CNT 0xff
 
