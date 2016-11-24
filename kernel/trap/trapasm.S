@@ -1,4 +1,4 @@
-#include "flags.h"
+#include "x86.h"
 
 # vectors.S sends all traps here.
 .globl AllTraps

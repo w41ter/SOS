@@ -18,7 +18,7 @@
 # 	boot
 # }
 
-#include "flags.h"
+#include "x86.h"
 #include "mm/memlayout.h"
 #include "param.h"
 

@@ -1,4 +1,3 @@
-#include <flags.h>
 #include <x86.h>
 #include <libs/types.h>
 #include <libs/stdio.h>

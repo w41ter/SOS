@@ -10,7 +10,17 @@
 
 extern char end[];
 
+static void SetupDevice(void);
+
 int main(void) 
+{
+    SetupDevice();
+
+    sti();
+    while (true) ;
+}
+
+static void SetupDevice(void)
 {
     ConsoleClear();
     
@@ -35,9 +45,6 @@ int main(void)
 
     /* Initialize ide device */
     IDEInitialize();
-
-    sti();
-    while (true) ;
 }
 
 // The boot page table used in entry.S and entryother.S.
