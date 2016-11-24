@@ -7,7 +7,7 @@
             panic(#condition);  \
     } while (0)                 \
 
-#define static_assert(condition)    \
+#define static_assert(x)    \
     switch (x) { case 0: case (x):;}
 
 void panic(const char *msg);

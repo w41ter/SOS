@@ -1,5 +1,5 @@
 
-OBJECTS = debug.o\
+OBJECTS = \
 	main.o\
 	entry.o\
 

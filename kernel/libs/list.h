@@ -2,7 +2,7 @@
 #define _LIST_H_
 
 #include <libs/types.h>
-#include <debug.h>
+#include <libs/debug.h>
 
 #ifndef offsetof
 #define offsetof(type, member) ((size_t) &((type*)0)->member)

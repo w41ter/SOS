@@ -1,10 +1,10 @@
-#include <debug.h>
 #include <vm.h>
 #include <x86.h>
-#include <libs/types.h>
-#include <driver/console.h>
-#include <driver/clock.h>
 #include <trap/traps.h>
+#include <libs/types.h>
+#include <libs/stdio.h>
+#include <libs/debug.h>
+#include <driver/device.h>
 #include <mm/memlayout.h>
 #include <mm/physicmemory.h>
 
@@ -12,7 +12,8 @@ extern char end[];
 
 int main(void) 
 {
-    console_clear();
+    ConsoleClear();
+    
     printk("Begin init kernel...\n");
 
     PhysicMemoryInitialize();
@@ -31,6 +32,9 @@ int main(void)
 
     /* Initialize keyboard interupt */
     KeyboardInitialize();
+
+    /* Initialize ide device */
+    IDEInitialize();
 
     sti();
     while (true) ;

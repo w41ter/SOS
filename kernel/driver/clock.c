@@ -1,8 +1,8 @@
 #include <x86.h>
 #include <libs/types.h>
+#include <libs/stdio.h>
 #include <trap/traps.h>
 #include <driver/clock.h>
-#include <driver/console.h>
 
 /* *
  * Support for time-related hardware gadgets - the 8253 timer,

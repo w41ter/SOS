@@ -1,8 +1,8 @@
-#include <debug.h>
 #include <vm.h>
 #include <mm/physicmemory.h>
 #include <mm/memlayout.h>
-#include <driver/console.h>
+#include <libs/stdio.h>
+#include <libs/debug.h>
 
 #define get_page_from_list_node(ptr) list_get((ptr), struct Page, node)
 
