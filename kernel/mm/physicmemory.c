@@ -1,4 +1,5 @@
 #include <vm.h>
+#include <mm/segment.h>
 #include <mm/physicmemory.h>
 #include <mm/memlayout.h>
 #include <libs/stdio.h>
@@ -101,10 +102,8 @@ static void FreePhysicMemoryInitialize(uint32_t *base, uint32_t size)
     }
 }
 
-void PhysicMemoryInitialize(void)
+static void PhysicMemoryPageInitialize(void)
 {
-    printk("++ setup physic memory manager\n");
-
     assert(MemorySizeInKB != 0 && "Memory size must success.");
 
     memorySize = MemorySizeInKB << 20;
@@ -130,6 +129,14 @@ void PhysicMemoryInitialize(void)
 
     uint32_t totalPages = (memorySize - (uint32_t)freeMemoryBeginAt) / PAGE_SIZE;
     FreePhysicMemoryInitialize(freeMemoryBeginAt, totalPages);
+}
+
+void PhysicMemoryInitialize(void)
+{
+    printk("++ setup physic memory manager\n");
+
+    PhysicMemoryPageInitialize();
+    GDTInitialize();
 }
 
 uint32_t SizeOfFreePhysicPage()

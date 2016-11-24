@@ -1,6 +1,6 @@
 #include "asm.h"
 #include "x86.h"
-#include "segment.h"
+#include "mm/segment.h"
 
 # Start the first CPU: switch to 32-bit protected mode, jump into C.
 # The BIOS loads this code from the first sector of the hard disk into

@@ -1,8 +1,9 @@
-#include <segment.h>
 #include <x86.h>
+#include <mm/segment.h>
 #include <libs/types.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
+#include <libs/string.h>
 #include <driver/device.h>
 #include <trap/traps.h>
 
@@ -33,10 +34,6 @@ typedef struct GateDescriptor {
     uint8_t  attribute;
     uint16_t func_offset_high16;
 } GateDescriptor;
-
-extern void trap_ret(void);
-extern void lapiceoi(void);
-extern void kbd_intr(void);
 
 static GateDescriptor idt[IDT_DESC_CNT];
 extern InteruptHandle vectors[];
@@ -84,13 +81,21 @@ static void MakeTrapVecor(
     desc->attribute = attr;
 }
 
+
+/* *
+ * These are arbitrarily chosen, but with care not to overlap
+ * processor defined exceptions or interrupt vectors.
+ * */
+#define T_SWITCH_TO_U                120    // user/kernel switch
+#define T_SWITCH_TO_K                121    // user/kernel switch
+
 void TrapVectrosInitialize(void)
 {
     for (int i = 0; i < IDT_DESC_CNT; ++i) {
         MakeTrapVecor(&idt[i], IDT_DESC_ATTR_DPL0, vectors[i]);
     }
-	MakeTrapVecor(&idt[T_SYSCALL],
-		TRAP_DESC_ATTR_DPL3, vectors[T_SYSCALL]);
+	MakeTrapVecor(&idt[T_SWITCH_TO_K],
+		TRAP_DESC_ATTR_DPL3, vectors[T_SWITCH_TO_K]);
 }
 
 void IDTInitialize(void) 
@@ -150,6 +155,11 @@ void PrintTrapFrame(TrapFrame *tf)
     }
 }
 
+
+
+/* temporary trapframe or pointer to trapframe */
+TrapFrame switchk2u, *switchu2k;
+
 /* DispatchTrap - dispatch based on what type of trap occurred */
 static void DispatchTrap(TrapFrame *tf) 
 {
@@ -158,38 +168,40 @@ static void DispatchTrap(TrapFrame *tf)
         ClockInterupt();
         break;
     case T_IRQ0 + IRQ_COM1:
-        //c = cons_getc();
-        //printk("serial [%03d] %c\n", c, c);
+        /* do nothing */
         break;
     case T_IRQ0 + IRQ_KBD:
         KeyboardInterupt();
         break;
-    // case T_SWITCH_TOU:
-    //     if (tf->cs != USER_CS) {
-    //         switchk2u = *tf;
-    //         switchk2u.cs = USER_CS;
-    //         switchk2u.ds = switchk2u.es = switchk2u.ss = USER_DS;
-    //         switchk2u.esp = (uint32_t)tf + sizeof(struct trapframe) - 8;
+    case T_SWITCH_TO_U:
+        if (tf->cs != USER_CS) {
+            
+            switchk2u = *tf;
+            switchk2u.cs = USER_CS;
+            switchk2u.ds = switchk2u.es = switchk2u.ss = USER_DS;
+            switchk2u.esp = (uint32_t)tf + sizeof(TrapFrame) - 8;
 		
-    //         // set eflags, make sure ucore can use io under user mode.
-    //         // if CPL > IOPL, then cpu will generate a general protection.
-    //         switchk2u.eflags |= FL_IOPL_MASK;
+            // set eflags, make sure ucore can use io under user mode.
+            // if CPL > IOPL, then cpu will generate a general protection.
+            switchk2u.eflags |= FL_IOPL_MASK;
 		
-    //         // set temporary stack
-    //         // then iret will jump to the right stack
-    //         *((uint32_t *)tf - 1) = (uint32_t)&switchk2u;
-    //     }
-    //     break;
-    // case T_SWITCH_TOK:
-    //     if (tf->cs != KERNEL_CS) {
-    //         tf->cs = KERNEL_CS;
-    //         tf->ds = tf->es = KERNEL_DS;
-    //         tf->eflags &= ~FL_IOPL_MASK;
-    //         switchu2k = (struct trapframe *)(tf->esp - (sizeof(struct trapframe) - 8));
-    //         memmove(switchu2k, tf, sizeof(struct trapframe) - 8);
-    //         *((uint32_t *)tf - 1) = (uint32_t)switchu2k;
-    //     }
-    //     break;
+            // set temporary stack
+            // then iret will jump to the right stack
+            *((uint32_t *)tf - 1) = (uint32_t)&switchk2u;
+
+            assert(switchk2u.eip == tf->eip);
+        }
+        break;
+    case T_SWITCH_TO_K:
+        if (tf->cs != KERNEL_CS) {
+            tf->cs = KERNEL_CS;
+            tf->ds = tf->es = tf->ss = KERNEL_DS;
+            tf->eflags &= ~FL_IOPL_MASK;
+            switchu2k = (TrapFrame *)(tf->esp - (sizeof(TrapFrame) - 8));
+            memmove(switchu2k, tf, sizeof(TrapFrame) - 8);
+            *((uint32_t *)tf - 1) = (uint32_t)switchu2k;
+        }
+        break;
     case T_IRQ0 + IRQ_IDE1:
     case T_IRQ0 + IRQ_IDE2:
         /* do nothing */

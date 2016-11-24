@@ -95,9 +95,9 @@ static inline void stosl(void *addr, int data, int cnt)
                              "memory", "cc");
 }
 
-struct segdesc;
+struct SegmentDescriptor;
 
-static inline void lgdt(struct segdesc *p, int size)
+static inline void lgdt(struct SegmentDescriptor *p, int size)
 {
     volatile uint16_t pd[3];
 
@@ -136,6 +136,26 @@ static inline uint32_t readeflags(void)
 static inline void loadgs(uint16_t v)
 {
     asm volatile("movw %0, %%gs" : : "r" (v));
+}
+
+static inline void loadfs(uint16_t v)
+{
+    asm volatile("movw %0, %%fs" : : "r" (v));
+}
+
+static inline void loades(uint16_t v)
+{
+    asm volatile("movw %0, %%es" : : "r" (v));
+}
+
+static inline void loadss(uint16_t v)
+{
+    asm volatile("movw %0, %%ss" : : "r" (v));
+}
+
+static inline void loadds(uint16_t v)
+{
+    asm volatile("movw %0, %%ds" : : "r" (v));
 }
 
 static inline void cli(void)

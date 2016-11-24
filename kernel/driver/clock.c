@@ -46,6 +46,6 @@ void ClockInitialize(void) {
 void ClockInterupt(void)
 {
     ticks++;
-    if (ticks % 100 == 0) 
+    if (ticks % 1000 == 0) 
         printk("[+]clock ticks\n");
 }

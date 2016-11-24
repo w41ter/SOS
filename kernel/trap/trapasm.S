@@ -1,4 +1,5 @@
 #include "x86.h"
+#include "mm/segment.h"
 
 # vectors.S sends all traps here.
 .globl AllTraps
@@ -11,9 +12,9 @@ AllTraps:
   pushal
   
   # Set up data and per-cpu segments.
-  # movw $(SEG_KDATA<<3), %ax
-  # movw %ax, %ds
-  # movw %ax, %es
+  movw $(KERNEL_DS), %ax
+  movw %ax, %ds
+  movw %ax, %es
   # movw $(SEG_KCPU<<3), %ax
   # movw %ax, %fs
   # movw %ax, %gs
@@ -21,9 +22,8 @@ AllTraps:
   # Call Trap(tf), where tf=%esp
   pushl %esp
   call Trap
-  addl $4, %esp
-  jmp TrapRet
-
+  popl %esp
+ 
   # Return falls through to TrapRet...
 .globl TrapRet
 TrapRet:
