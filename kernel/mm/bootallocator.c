@@ -17,11 +17,6 @@ void BootAllocatorInitialize(uint32_t free)
     bootAllocator.free = bootAllocator.start;
 }
 
-// void* BootAllocPages(size_t npage)
-// {
-    
-// }
-
 void BootExtendMemoryTo(uint32_t last)
 {
     int from = bootAllocator.free >> PDX_SHIFT;
@@ -29,4 +24,16 @@ void BootExtendMemoryTo(uint32_t last)
     for (from++; from <= end; from++) {
         entrypgdir[from] = V2P(from << PDX_SHIFT) | PTE_P | PTE_W | PTE_PS;
     }
+}
+
+void * BootAllocPages(size_t npage)
+{
+    uint32_t end = PGROUNDUP(BootAllocator.free) + PAGE_SIZE;
+    BootExtendMemoryTo(end);
+    return (void*)end;
+}
+
+void * BootAllocPage(void)
+{
+    return BootAllocPages(1);
 }
