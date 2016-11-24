@@ -1,5 +1,6 @@
 #include <vm.h>
 #include <mm/segment.h>
+#include <mm/bootallocator.h>
 #include <mm/physicmemory.h>
 #include <mm/memlayout.h>
 #include <libs/stdio.h>
@@ -112,15 +113,14 @@ static void PhysicMemoryPageInitialize(void)
     pages = (Page*)PGROUNDUP((void*)end);
     freeMemoryBeginAt = (uint32_t*)V2P((uint32_t*)(pages + nPages));
 
+    /* ensure no page fault. */
+    BootExtendMemoryTo((uint32_t)freeMemoryBeginAt);
+
     printk("\tDetected memory size: 0x%x\n", memorySize);
     printk("\ttotal pages is: 0x%x\n", nPages);
     printk("\tkernel load end at: 0x%p\n", V2P(end));
     printk("\tpages virtual begin at: 0x%p\n", pages);
     printk("\tfree physic memory begin at: 0x%p\n", freeMemoryBeginAt);
-
-    // extern pde_t entrypgdir[];
-    // dump_page_table(entrypgdir, 1);
-    // // return ;
 
     FreeAreaInitialize(&freeArea);
     for (int i = 0; i < nPages; ++i) {
@@ -135,6 +135,8 @@ void PhysicMemoryInitialize(void)
 {
     printk("++ setup physic memory manager\n");
 
+    /* for memory map */
+    BootAllocatorInitialize(PGROUNDUP((void*)end));
     PhysicMemoryPageInitialize();
     GDTInitialize();
 }

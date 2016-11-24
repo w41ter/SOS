@@ -124,7 +124,4 @@ pde_t entrypgdir[NPDENTRIES] = {
     [0] = (0) | PTE_P | PTE_W | PTE_PS |PTE_U,
     // Map VA's [KERNBASE, KERNBASE+4MB) to PA's [0, 4MB)
     [KERNEL_BASE>>PDX_SHIFT] = (0) | PTE_P | PTE_W | PTE_PS |PTE_U,
-    // FIXME: [4MB, 8MB)
-    [1] = (1 << PDX_SHIFT) | PTE_P | PTE_W | PTE_PS |PTE_U,
-    [769] = (1 << PDX_SHIFT) | PTE_P | PTE_W | PTE_PS |PTE_U,
 };

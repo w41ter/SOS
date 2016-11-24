@@ -8,8 +8,9 @@
 #define PHYSTOP 0xE000000           // Top physical memory
 #define DEVSPACE 0xFE000000         // Other devices are at high addresses
 
-// Key addresses for address space layout (see kmap in vm.c for layout)
-#define KERNEL_BASE 0xc0000000         // First kernel virtual address
+#define KERNEL_SIZE 0x38000000      // Kernel size
+#define KERNEL_BASE 0xc0000000      // First kernel virtual address
+#define KERNEL_TOP  0xF8000000      // Kernel max high address
 #define KERNEL_LINK (KERNEL_BASE+EXTMEM)  // Address where kernel is linked
 
 #define V2P(a) (((uint32_t) (a)) - KERNEL_BASE)
