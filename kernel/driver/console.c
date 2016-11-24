@@ -1,8 +1,8 @@
-#include "x86.h"
-#include "driver/console.h"
-#include "mm/memlayout.h"
-#include "trap/traps.h"
-#include "libs/string.h"
+#include <x86.h>
+#include <driver/console.h>
+#include <mm/memlayout.h>
+#include <trap/traps.h>
+#include <libs/string.h>
 
 #define BACKSPACE 0x100
 

@@ -14,7 +14,7 @@
 
 #ifndef __ASSEMBLER__
 
-#include "types.h"
+#include <libs/types.h>
 
 // Segment Descriptor
 struct segdesc {

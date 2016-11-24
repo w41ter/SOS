@@ -1,7 +1,7 @@
 #pragma once
 
-#include "types.h"
-#include "libs/list.h"
+#include <libs/types.h>
+#include <libs/list.h>
 
 typedef struct Page {
     int ref;

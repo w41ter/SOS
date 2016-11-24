@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.h"
+#include <libs/types.h>
 
 // Format of an ELF executable file
 

@@ -1,7 +1,7 @@
 #ifndef _CONSOLE_H_
 #define _CONSOLE_H_
 
-#include "types.h"
+#include <libs/types.h>
 
 typedef __builtin_va_list va_list;
 

@@ -5,9 +5,9 @@
 // bootmain() loads an ELF kernel image from the disk starting at
 // sector 1 and then jumps to the kernel entry routine.
 
-#include "types.h"
-#include "elf.h"
-#include "x86.h"
+#include <libs/types.h>
+#include <elf.h>
+#include <x86.h>
 
 #define SECTSIZE 512
 
