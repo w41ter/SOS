@@ -1,4 +1,4 @@
-#include <vm.h>
+#include <mm/vmm.h>
 #include <mm/segment.h>
 #include <mm/bootallocator.h>
 #include <mm/physicmemory.h>
@@ -138,6 +138,7 @@ void PhysicMemoryInitialize(void)
     /* for memory map */
     BootAllocatorInitialize(PGROUNDUP((void*)end));
     PhysicMemoryPageInitialize();
+    PagingInitialize();
     GDTInitialize();
 }
 

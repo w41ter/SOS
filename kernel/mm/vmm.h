@@ -30,6 +30,8 @@
 #define PTX_SHIFT        12      // offset of PTX in a linear address
 #define PDX_SHIFT        22      // offset of PDX in a linear address
 
+// 页掩码，用于 4KB 对齐
+#define PAGE_MASK      0xFFFFF000
 #define PGROUNDUP(sz)  ((int)((sz)+PAGE_SIZE-1) & ~(PAGE_SIZE-1))
 #define PGROUNDDOWN(a) (((a)) & ~(PAGE_SIZE-1))
 
@@ -48,17 +50,14 @@
 #define PTE_ADDR(pte)   ((uint32_t)(pte) & ~0xFFF)
 #define PTE_FLAGS(pte)  ((uint32_t)(pte) &  0xFFF)
 
-
 // 页目录数据类型
-typedef uint32_t pde_t;
+typedef uint32_t PageDirectoryEntity;
 
 // 页表数据类型
-typedef uint32_t pte_t;
+typedef uint32_t PageTableEntity;
 
-// 映射 512MB 内存所需要的页表数
-#define PTE_COUNT 128
 
-// 页掩码，用于 4KB 对齐
-#define PAGE_MASK      0xFFFFF000
+void PagingInitialize(void);
+void PrintPageDirectory(PageDirectoryEntity *pde);
 
 #endif 
