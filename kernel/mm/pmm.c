@@ -1,7 +1,7 @@
 #include <mm/vmm.h>
+#include <mm/pmm.h>
 #include <mm/segment.h>
 #include <mm/bootallocator.h>
-#include <mm/physicmemory.h>
 #include <mm/memlayout.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
@@ -14,11 +14,8 @@ typedef struct FreePhysicArea {
 } FreePhysicArea;
 
 extern char end[];
-extern uint32_t MemorySizeInKB;
 
 FreePhysicArea freeArea;
-uint32_t *freeMemoryBeginAt;
-uint32_t memorySize;
 
 /* WARNING: no change it */
 Page *pages;
@@ -103,43 +100,56 @@ static void FreePhysicMemoryInitialize(uint32_t *base, uint32_t size)
     }
 }
 
-static void PhysicMemoryPageInitialize(void)
+static void PMMPageInitialize(void)
 {
-    assert(MemorySizeInKB != 0 && "Memory size must success.");
-
-    memorySize = MemorySizeInKB << 20;
-    uint32_t nPages = memorySize / PAGE_SIZE;
+    uint32_t nPages = GetPhysicMemorySize() / PAGE_SIZE;
 
     pages = (Page*)PGROUNDUP((void*)end);
-    freeMemoryBeginAt = (uint32_t*)V2P((uint32_t*)(pages + nPages));
+    uint32_t freeMemoryBeginAt = V2P(pages + nPages);
 
     /* ensure no page fault. */
-    BootExtendMemoryTo((uint32_t)freeMemoryBeginAt);
+    BootExtendMemoryTo(freeMemoryBeginAt);
 
-    printk("\tDetected memory size: 0x%x\n", memorySize);
-    printk("\ttotal pages is: 0x%x\n", nPages);
-    printk("\tkernel load end at: 0x%p\n", V2P(end));
-    printk("\tpages virtual begin at: 0x%p\n", pages);
-    printk("\tfree physic memory begin at: 0x%p\n", freeMemoryBeginAt);
+    printk(" [+] initialize physic pages\n");
+    printk("  [+] total pages is: 0x%08x\n", nPages);
+    printk("  [+] pages virtual begin at: 0x%08x\n", pages);
 
     FreeAreaInitialize(&freeArea);
     for (int i = 0; i < nPages; ++i) {
         PageInitialize(pages + i);
     }
-
-    uint32_t totalPages = (memorySize - (uint32_t)freeMemoryBeginAt) / PAGE_SIZE;
-    FreePhysicMemoryInitialize(freeMemoryBeginAt, totalPages);
 }
 
-void PhysicMemoryInitialize(void)
+static void PMMZoneInitialize(void) 
 {
-    printk("++ setup physic memory manager\n");
+    uint32_t freeMemoryBeginAt = GetBootAllocatorFreeAddress();
+    uint32_t lowMemoryTop = GetLowMemoryTop();
+    printk(" [+] free memory begin at: 0x%08x\n", freeMemoryBeginAt);
 
+    FreePhysicMemoryInitialize((uint32_t*)PGROUNDUP(freeMemoryBeginAt),
+        (lowMemoryTop - freeMemoryBeginAt) / PAGE_SIZE);
+}
+
+static void PMMAllocatorSetup(void)
+{
+
+}
+
+void PMMInitialize(void)
+{
+    uint32_t kernelEnd = V2P(PGROUNDUP((void*)end));
+    
+    printk("++ setup physic memory manager\n");
+    printk(" [+] kernel load end at: 0x%08x\n", V2P(end));
+
+    FindLowMemoryTop();
     /* for memory map */
-    BootAllocatorInitialize(PGROUNDUP((void*)end));
-    PhysicMemoryPageInitialize();
+    BootAllocatorSetup(kernelEnd);
+    PMMPageInitialize();
     PagingInitialize();
     GDTInitialize();
+    PMMZoneInitialize();
+    PMMAllocatorSetup();
 }
 
 uint32_t SizeOfFreePhysicPage()
@@ -196,8 +206,8 @@ Page* PhysicAllocatePages(size_t n)
 
 void PhysicFreePages(Page *base, size_t n)
 {
-    assert((uint32_t)freeMemoryBeginAt <= (uint32_t)base 
-        && (uint32_t)base < memorySize
+    assert(pages <= base 
+        && (uint32_t)base < GetLowMemoryTop()
         && "please no free memory out of range.");
     assert(n > 0 && "can not free zero page");
     assert(IsPageReserved(base) && "try to release unused memory.");
@@ -240,21 +250,3 @@ void PhysicFreePages(Page *base, size_t n)
 
     freeArea.freeNumbers += n;
 }
-
-// #include "x86.h"
-// // notice: 有很多没有直接映射页表的页面会导致访问出错
-// void dump_page_table(pde_t *pde, int stop)
-// {
-//     printk("dump_page_table:\n");
-//     uint32_t idx = 0;
-//     for (; idx < 1024; ++idx) {
-//         pte_t *pte = (pte_t *)pde[idx];
-//         if (!((uint32_t)pte & PTE_P))
-//             continue;
-//         pte = (pte_t*)((uint32_t)pte & PAGE_MASK);
-//         printk("  [%d] 0x%03x00000 => 0x%08x:\n", idx, idx << 2, pte);
-//     }
-//     while (!stop) {
-//         hlt();
-//     }
-// }

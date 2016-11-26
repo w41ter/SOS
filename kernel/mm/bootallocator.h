@@ -2,7 +2,8 @@
 
 #include <libs/types.h>
 
-void BootAllocatorInitialize(uint32_t free);
+void BootAllocatorSetup(uint32_t free);
 void * BootAllocPages(size_t npage);
 void * BootAllocPage(void);
 void BootExtendMemoryTo(uint32_t last);
+uint32_t GetBootAllocatorFreeAddress(void);

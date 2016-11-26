@@ -6,8 +6,8 @@
 #include <libs/string.h>
 #include <driver/device.h>
 #include <mm/vmm.h>
+#include <mm/pmm.h>
 #include <mm/memlayout.h>
-#include <mm/physicmemory.h>
 
 extern char end[];
 
@@ -28,7 +28,7 @@ static void SetupDevice(void)
     
     printk("Begin init kernel...\n");
 
-    PhysicMemoryInitialize();
+    PMMInitialize();
 
     /* Initialize the 8259A interrupt controllers. */
     PICInitialize();

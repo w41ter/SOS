@@ -19,4 +19,14 @@
 #define V2P_WO(x) ((x) - KERNEL_BASE)    // same as V2P, but without casts
 #define P2V_WO(x) ((x) + KERNEL_BASE)    // same as P2V, but without casts
 
+#ifndef __ASSEMBLER__
+
+#include <libs/types.h>
+
+void FindLowMemoryTop(void);
+uint64_t GetPhysicMemorySize(void);
+uint32_t GetLowMemoryTop(void);
+
+#endif // __ASSEMBLER__
+
 #endif // _MEM_LAYOUT_H_

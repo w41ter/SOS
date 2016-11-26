@@ -1,5 +1,5 @@
-OBJECTS += mm/memorydetect.o\
-    mm/physicmemory.o\
+OBJECTS += mm/memlayout.o\
+    mm/pmm.o\
     mm/segment.o\
     mm/bootallocator.o\
     mm/paging.o\

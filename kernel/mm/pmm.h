@@ -16,7 +16,7 @@ enum {
     PG_Free = 1,
 };
 
-void PhysicMemoryInitialize(void);
+void PMMInitialize(void);
 uint32_t SizeOfFreePhysicPage();
 Page* PhysicAllocatePages(size_t n);
 void PhysicFreePages(Page *base, size_t n);

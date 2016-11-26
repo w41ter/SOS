@@ -1,7 +1,33 @@
 #include <x86.h>
+#include <mm/memlayout.h>
+#include <libs/debug.h>
+#include <libs/stdio.h>
+
+extern uint32_t MemorySizeInKB;
+
+uint32_t LowMemoryTop;
+
+uint64_t GetPhysicMemorySize(void) 
+{
+	return MemorySizeInKB << 20;
+}
+
+void FindLowMemoryTop(void) 
+{
+	uint64_t memorySize = GetPhysicMemorySize();
+	LowMemoryTop = memorySize < KERNEL_TOP 
+		? memorySize : KERNEL_TOP;
+	printk(" [+] low memory top at: 0x%08x\n", LowMemoryTop);
+}
+
+uint32_t GetLowMemoryTop(void) 
+{
+	assert(LowMemoryTop != 0 && "must call find low memory top first");
+	return LowMemoryTop;
+}
 
 /**
- * detect memory in protected mode 
+ * detect memory in protected mode, no paging. 
  * return memory size detected in KB.
  */
 unsigned int ProbesMemory(void)
@@ -70,3 +96,4 @@ unsigned int ProbesMemory(void)
 
     return memKB;// << 20;
 }
+

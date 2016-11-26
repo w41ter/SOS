@@ -22,7 +22,7 @@ static bool IsLargePage(uint32_t page)
 
 void PagingInitialize(void) 
 {
-    printk("++ setup paging.\n");
+    printk(" [+] setup paging.\n");
 
     pgdir = P2V(BootAllocPage());
 
@@ -68,7 +68,7 @@ void PagingInitialize(void)
     /* Refresh paging directory */
     lcr3(V2P(pgdir));
     
-    PrintPageDirectory(pgdir);
+    //PrintPageDirectory(pgdir);
 }
 
 static void PrintMap(uint32_t pde_idx, uint32_t bi,
@@ -77,7 +77,7 @@ static void PrintMap(uint32_t pde_idx, uint32_t bi,
     pde_idx <<= 22;
     ei <<= 12;
     bi <<= 12;
-    printk("    |-- [0x%08x - 0x%08x) => [0x%08x - 0x%08x)\n", 
+    printk("  |-- [0x%08x - 0x%08x) => [0x%08x - 0x%08x)\n", 
         bi + pde_idx, ei + pde_idx, beg, end);
 }
 
@@ -91,7 +91,7 @@ void PrintPageDirectory(PageDirectoryEntity *pde)
         
         if (IsLargePage((uint32_t)pte)) {
             uint32_t addr = (uint32_t)pte & PAGE_MASK;
-            printk("  [%d] [0x%08x, 0x%08x) => [0x%08x, 0x%08x)\n", 
+            printk("[%d] [0x%08x, 0x%08x) => [0x%08x, 0x%08x)\n", 
                 idx, PGADDR(idx, 0, 0), PGADDR(idx+1, 0, 0), 
                 addr, addr + 0x100000);
             continue;
@@ -100,7 +100,7 @@ void PrintPageDirectory(PageDirectoryEntity *pde)
         /* dump page table entry */
         pte = (PageTableEntity*)((uint32_t)pte & PAGE_MASK);
         pte = P2V(pte);
-        printk("  [%d] 0x%03x00000 at 0x%08x:\n", idx, idx << 2, pte);
+        printk("[%d] 0x%03x00000 at 0x%08x:\n", idx, idx << 2, pte);
         int32_t begin = -1, last = 0, beg_idx = 0;
         for (uint32_t ti = 0; ti < NPTENTRIES; ++ti) {
             uint32_t page = pte[ti];
