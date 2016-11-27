@@ -28,6 +28,7 @@ static void SetupDevice(void)
     
     printk("Begin init kernel...\n");
 
+    /* Initialize physic memory manager */
     PMMInitialize();
 
     /* Initialize the 8259A interrupt controllers. */

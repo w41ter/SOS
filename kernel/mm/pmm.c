@@ -13,8 +13,6 @@ typedef struct FreePhysicArea {
     uint32_t freeNumbers;
 } FreePhysicArea;
 
-extern char end[];
-
 FreePhysicArea freeArea;
 
 /* WARNING: no change it */
@@ -100,11 +98,11 @@ static void FreePhysicMemoryInitialize(uint32_t *base, uint32_t size)
     }
 }
 
-static void PMMPageInitialize(void)
+static void PMMPageInitialize(uint32_t kernelEnd)
 {
     uint32_t nPages = GetPhysicMemorySize() / PAGE_SIZE;
 
-    pages = (Page*)PGROUNDUP((void*)end);
+    pages = (Page*)PGROUNDUP(kernelEnd);
     uint32_t freeMemoryBeginAt = V2P(pages + nPages);
 
     /* ensure no page fault. */
@@ -132,11 +130,12 @@ static void PMMZoneInitialize(void)
 
 static void PMMAllocatorSetup(void)
 {
-
+    SlabSetup();
 }
 
 void PMMInitialize(void)
 {
+    extern char end[];
     uint32_t kernelEnd = V2P(PGROUNDUP((void*)end));
     
     printk("++ setup physic memory manager\n");
@@ -145,7 +144,7 @@ void PMMInitialize(void)
     FindLowMemoryTop();
     /* for memory map */
     BootAllocatorSetup(kernelEnd);
-    PMMPageInitialize();
+    PMMPageInitialize((uint32_t)end);
     PagingInitialize();
     GDTInitialize();
     PMMZoneInitialize();
@@ -249,4 +248,25 @@ void PhysicFreePages(Page *base, size_t n)
     }
 
     freeArea.freeNumbers += n;
+}
+
+Page * PhysicAllocatePage()
+{
+    return PhysicAllocatePages(1);
+}
+
+void PhysicFreePage(Page *page) 
+{
+    return PhysicFreePages(page, 1);
+}
+
+void * PageToVirtualAddress(Page *page) 
+{
+    assert(pages <= page 
+        && (uint32_t)page < GetLowMemoryTop()
+        && "page out of range.");
+    assert(((uint32_t)page & ~PAGE_MASK) && "invaild page address");
+    
+    size_t pageIndex = page - pages;
+    return P2V(pageIndex * PAGE_SIZE);
 }
