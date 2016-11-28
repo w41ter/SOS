@@ -12,6 +12,7 @@ include ./libs/makefile
 include ./driver/makefile
 include ./mm/makefile
 include ./trap/makefile
+include ./syscall/makefile
 
 kernel: $(OBJECTS) kernel.ld
 	@echo $(OBJECTS)

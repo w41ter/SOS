@@ -6,6 +6,7 @@
 #include <libs/string.h>
 #include <driver/device.h>
 #include <trap/traps.h>
+#include <syscall/syscall.h>
 
 #define IDT_DESC_CNT 0xff
 
@@ -94,8 +95,7 @@ void TrapVectrosInitialize(void)
     for (int i = 0; i < IDT_DESC_CNT; ++i) {
         MakeTrapVecor(&idt[i], IDT_DESC_ATTR_DPL0, vectors[i]);
     }
-	MakeTrapVecor(&idt[T_SWITCH_TO_K],
-		TRAP_DESC_ATTR_DPL3, vectors[T_SWITCH_TO_K]);
+	MakeTrapVecor(&idt[T_SYSCALL], TRAP_DESC_ATTR_DPL3, vectors[T_SYSCALL]);
 }
 
 void IDTInitialize(void) 
@@ -155,11 +155,6 @@ void PrintTrapFrame(TrapFrame *tf)
     }
 }
 
-
-
-/* temporary trapframe or pointer to trapframe */
-TrapFrame switchk2u, *switchu2k;
-
 /* DispatchTrap - dispatch based on what type of trap occurred */
 static void DispatchTrap(TrapFrame *tf) 
 {
@@ -173,34 +168,8 @@ static void DispatchTrap(TrapFrame *tf)
     case T_IRQ0 + IRQ_KBD:
         KeyboardInterupt();
         break;
-    case T_SWITCH_TO_U:
-        if (tf->cs != USER_CS) {
-            
-            switchk2u = *tf;
-            switchk2u.cs = USER_CS;
-            switchk2u.ds = switchk2u.es = switchk2u.ss = USER_DS;
-            switchk2u.esp = (uint32_t)tf + sizeof(TrapFrame) - 8;
-		
-            // set eflags, make sure ucore can use io under user mode.
-            // if CPL > IOPL, then cpu will generate a general protection.
-            switchk2u.eflags |= FL_IOPL_MASK;
-		
-            // set temporary stack
-            // then iret will jump to the right stack
-            *((uint32_t *)tf - 1) = (uint32_t)&switchk2u;
-
-            assert(switchk2u.eip == tf->eip);
-        }
-        break;
-    case T_SWITCH_TO_K:
-        if (tf->cs != KERNEL_CS) {
-            tf->cs = KERNEL_CS;
-            tf->ds = tf->es = tf->ss = KERNEL_DS;
-            tf->eflags &= ~FL_IOPL_MASK;
-            switchu2k = (TrapFrame *)(tf->esp - (sizeof(TrapFrame) - 8));
-            memmove(switchu2k, tf, sizeof(TrapFrame) - 8);
-            *((uint32_t *)tf - 1) = (uint32_t)switchu2k;
-        }
+    case T_SYSCALL:
+        SystemCall();
         break;
     case T_IRQ0 + IRQ_IDE1:
     case T_IRQ0 + IRQ_IDE2:

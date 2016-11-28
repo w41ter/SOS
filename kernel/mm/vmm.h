@@ -59,5 +59,5 @@ typedef uint32_t PageTableEntity;
 
 void PagingInitialize(void);
 void PrintPageDirectory(PageDirectoryEntity *pde);
-
+void OnPageFault();
 #endif 
