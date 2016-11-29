@@ -2,6 +2,7 @@
 OBJECTS = \
 	main.o\
 	entry.o\
+	test.o\
 
 VPATH = ./
 
@@ -13,6 +14,7 @@ include ./driver/makefile
 include ./mm/makefile
 include ./trap/makefile
 include ./syscall/makefile
+include ./proc/makefile
 
 kernel: $(OBJECTS) kernel.ld
 	@echo $(OBJECTS)

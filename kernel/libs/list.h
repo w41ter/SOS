@@ -106,6 +106,7 @@ static inline struct list_node_t *list_insert(
     struct list_t *list = list_from_node(old_node);
     struct list_node_t *head = list_head(list);
     list_node_init(new_node);
+    new_node->list = list;
     if (head == old_node) {
         head->prev = new_node;
         new_node->next = head;
@@ -146,6 +147,7 @@ static inline struct list_node_t *list_replace(
     assert(old_node != NULL && new_node != NULL);
     struct list_t *list = list_from_node(old_node);
     list_node_init(new_node);
+    new_node->list = list;
     if (list_size(list) == 1) {
         list->head = new_node;
         list->tail = new_node;

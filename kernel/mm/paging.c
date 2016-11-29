@@ -37,7 +37,7 @@ void PagingInitialize(void)
     topAddr = 0x1000000;
 
     /* Clear virtual address's [0, 4MB) to physical address's [0, 4MB) map */
-    //pgdir[0] = PTE_P | PTE_W | PTE_PS;
+    pgdir[0] = PTE_P | PTE_W | PTE_PS;
 
     /*
      * Map [0, topAddr) to [KERNEL_BASE, KERNEL_BAST + topAddr)
@@ -68,7 +68,8 @@ void PagingInitialize(void)
     /* Refresh paging directory */
     lcr3(V2P(pgdir));
     
-    //PrintPageDirectory(pgdir);
+    // PrintPageDirectory(pgdir);
+    // hlt();
 }
 
 static void PrintMap(uint32_t pde_idx, uint32_t bi,
@@ -130,4 +131,25 @@ void PrintPageDirectory(PageDirectoryEntity *pde)
            PrintMap(idx, beg_idx, 2014, begin, last);
     }
     printk("--------------------- END ---------------------\n");
+}
+
+uintptr_t GetInitializePageDirctory(void)
+{
+    assert(pgdir && "pgdir is nullptr");
+    return V2P(pgdir);
+}
+
+void OnPageFault(TrapFrame *tf)
+{
+    /* error_code:
+     * bit 0 == 0 means no page found, 1 means protection fault
+     * bit 1 == 0 means read, 1 means write
+     * bit 2 == 0 means kernel, 1 means user
+     * */
+    printk("page fault at 0x%08x, eip=0x%08x: %c/%c [%s].\n", 
+            rcr2(), tf->eip,
+            (tf->err & 4) ? 'U' : 'K',
+            (tf->err & 2) ? 'W' : 'R',
+            (tf->err & 1) ? "protection fault" : "no page found");
+    panic("");
 }

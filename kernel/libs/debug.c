@@ -50,7 +50,7 @@ struct stab {
     uint32_t n_value;      // value of symbol
 };
 
-#define STACKFRAME_DEPTH 20
+#define STACKFRAME_DEPTH 6
 
 extern const struct stab __STAB_BEGIN__[];  // beginning of stabs table
 extern const struct stab __STAB_END__[];    // end of stabs table
@@ -285,7 +285,8 @@ void print_debug_info(uint32_t eip)
             fnname[j] = info.eip_fn_name[j];
         }
         fnname[j] = '\0';
-        printk("%s: %s+0x%x\n", info.eip_file, fnname, eip - info.eip_fn_addr);
+        printk("%s(+%d): \t%s+0x%x\n", info.eip_file, info.eip_line,
+            fnname, eip - info.eip_fn_addr);
     }
 }
 
@@ -307,8 +308,7 @@ void print_stack_frame(void)
 {
     uint32_t ebp = read_ebp(), eip = read_eip();
 
-    int i;
-    for (i = 0; ebp != 0 && i < STACKFRAME_DEPTH; i ++) {
+    for (int i = 0; ebp != 0 && i < STACKFRAME_DEPTH; i ++) {
 		printk("    [%d] ", i);
         print_debug_info(eip - 1);
         eip = ((uint32_t *)ebp)[1];

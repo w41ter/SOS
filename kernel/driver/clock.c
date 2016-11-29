@@ -43,9 +43,11 @@ void ClockInitialize(void) {
     PICEnable(IRQ_TIMER);
 }
 
+extern void OnTimer(void);  // schedule.c
+
 void ClockInterupt(void)
 {
     ticks++;
-    if (ticks % 1000 == 0) 
-        printk("[+]clock ticks\n");
+    if (ticks % 50 == 0) 
+        OnTimer();
 }

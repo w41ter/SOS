@@ -15,8 +15,8 @@ uint64_t GetPhysicMemorySize(void)
 void FindLowMemoryTop(void) 
 {
 	uint64_t memorySize = GetPhysicMemorySize();
-	LowMemoryTop = memorySize < KERNEL_TOP 
-		? memorySize : KERNEL_TOP;
+	LowMemoryTop = memorySize < V2P(KERNEL_TOP) 
+		? memorySize : V2P(KERNEL_TOP);
 	printk(" [+] low memory top at: 0x%08x\n", LowMemoryTop);
 }
 

@@ -6,7 +6,7 @@
 #include <libs/stdio.h>
 #include <libs/debug.h>
 
-#define get_page_from_list_node(ptr) list_get((ptr), struct Page, node)
+#define GET_PAGE_FROM_LIST_NODE(ptr) (list_get((ptr), struct Page, node))
 
 typedef struct FreePhysicArea {
     struct list_t list;
@@ -84,10 +84,12 @@ static void FreePhysicMemoryInitialize(uint32_t *base, uint32_t size)
 {
     assert(base && pages && "nullptr exception");
 
+    printk("  [+] total page: %d\n", size);
+
     Page *page = pages + (uint32_t)base / PAGE_SIZE;
     freeArea.freeNumbers = size;
     /* first block */
-    pages->property = size;
+    page->property = size;
     while (size--) {
         assert(((uint32_t)page < (uint32_t)P2V(base)) 
             && "out of memory range.");
@@ -96,6 +98,11 @@ static void FreePhysicMemoryInitialize(uint32_t *base, uint32_t size)
         list_append(&freeArea.list, &page->node);
         page++;
     }
+
+    // test
+    page = GET_PAGE_FROM_LIST_NODE(list_head(&freeArea.list));
+    assert(page && page->property == freeArea.freeNumbers
+        && "init free area space error");
 }
 
 static void PMMPageInitialize(uint32_t kernelEnd)
@@ -166,37 +173,46 @@ Page* PhysicAllocatePages(size_t n)
     if (n > SizeOfFreePhysicPage())
         return NULL;
 
+    assert(list_size(&freeArea.list) != 0);
     list_for_each(node, &freeArea.list) {
-        Page *p = get_page_from_list_node(node);
+        Page *p = GET_PAGE_FROM_LIST_NODE(node);
         assert(p && "PhysicAllocatePages: error occupied when iterate freeArea.list.");
-        
-        /* last page of this block */
-        Page *last = p + p->property - 1;
+        assert(p->property != 0 && "logic error");
+
         if (p->property >= n) {
+            int32_t leave = p->property - n;
             /* find! */
             for (int i = 0; i < n; ++i) {
+                assert(node && "PhysicAllocatePages: error occupied");
                 struct list_node_t *tmp = node;
                 node = list_node_next(node);
                 list_remove(tmp);
-                assert(node && "PhysicAllocatePages: error occupied");
-
-                Page *tp = get_page_from_list_node(tmp);
+                
+                Page *tp = GET_PAGE_FROM_LIST_NODE(tmp);
                 ClearPageRef(tp);
                 SetPageReserved(tp);
                 tp->property = 0;
             }
-            if (p->property > n) {
-                Page *tp = get_page_from_list_node(list_node_next(&last->node));
-                tp->property = p->property - n;
-            }
+            if (leave > 0) {
+                /* current node point to next block */
+                assert(node && "PhysicAllocatePages: error occupied");
+                Page *tp = GET_PAGE_FROM_LIST_NODE(node);
+
+                assert(pages <= tp 
+                    && (uint32_t)tp < (uint32_t)P2V(GetLowMemoryTop())
+                    && "please no free memory out of range.");
                 
+                tp->property = leave;
+            }   
             freeArea.freeNumbers -= n;
             return p;
         }
-        else 
+        else {
             /* we can skip nodes easily because 
                pages block are adjust in physic */
-            node = &last->node;
+            Page *lastPage = p + p->property - 1;
+            node = &lastPage->node;
+        }
     }
 
     /* can't find proper block when progress visit here. */
@@ -206,14 +222,14 @@ Page* PhysicAllocatePages(size_t n)
 void PhysicFreePages(Page *base, size_t n)
 {
     assert(pages <= base 
-        && (uint32_t)base < GetLowMemoryTop()
+        && (uint32_t)base < (uint32_t)P2V(GetLowMemoryTop())
         && "please no free memory out of range.");
     assert(n > 0 && "can not free zero page");
     assert(IsPageReserved(base) && "try to release unused memory.");
 
     Page *p = NULL;
     list_for_each(node, &freeArea.list) {
-        p = get_page_from_list_node(node);
+        p = GET_PAGE_FROM_LIST_NODE(node);
         if (p > base)
             break;
     }
@@ -232,18 +248,17 @@ void PhysicFreePages(Page *base, size_t n)
     }
 
     /* merge fst block */
-    struct list_node_t *prev = list_node_prev(&base->node),
-        *tail = list_tail(&freeArea.list);
-    p = get_page_from_list_node(prev);
-    if (prev != tail && p == base - 1) {
-        while (prev != tail) {
+    struct list_node_t *prev = list_node_prev(&base->node);
+    p = GET_PAGE_FROM_LIST_NODE(prev);
+    if (prev != list_end() && p == base - 1) {
+        while (prev != list_end()) {
             if (p->property) {
                 p->property += base->property;
                 base->property = 0;
                 break;
             }
             prev = list_node_prev(prev);
-            p = get_page_from_list_node(prev);
+            p = GET_PAGE_FROM_LIST_NODE(prev);
         }
     }
 
@@ -263,7 +278,7 @@ void PhysicFreePage(Page *page)
 void * PageToVirtualAddress(Page *page) 
 {
     assert(pages <= page 
-        && (uint32_t)page < GetLowMemoryTop()
+        && (uint32_t)page < (uint32_t)P2V(GetLowMemoryTop())
         && "page out of range.");
     assert(((uint32_t)page & ~PAGE_MASK) && "invaild page address");
     

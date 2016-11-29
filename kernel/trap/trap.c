@@ -1,4 +1,5 @@
 #include <x86.h>
+#include <mm/vmm.h>
 #include <mm/segment.h>
 #include <libs/types.h>
 #include <libs/stdio.h>
@@ -167,6 +168,9 @@ static void DispatchTrap(TrapFrame *tf)
         break;
     case T_IRQ0 + IRQ_KBD:
         KeyboardInterupt();
+        break;
+    case T_PGFLT:
+        OnPageFault(tf);
         break;
     case T_SYSCALL:
         SystemCall();

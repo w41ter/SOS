@@ -8,18 +8,24 @@
 #include <mm/vmm.h>
 #include <mm/pmm.h>
 #include <mm/memlayout.h>
+#include <proc/proc.h>
 
 extern char end[];
 
 static void SetupDevice(void);
+static void Idle(void);
+
+void Test(void);
 
 int main(void) 
 {
     SetupDevice();
 
-    sti();
+    Test();
 
-    while (true) ;
+    ProcessInitialize();
+
+    Idle();
 }
 
 static void SetupDevice(void)
@@ -48,6 +54,15 @@ static void SetupDevice(void)
 
     /* Initialize ide device */
     IDEInitialize();
+}
+
+static void Idle(void)
+{
+    sti();
+
+    while (true) {
+        hlt();
+    }
 }
 
 // The boot page table used in entry.S and entryother.S.

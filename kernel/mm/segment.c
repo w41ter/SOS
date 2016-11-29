@@ -40,16 +40,13 @@ static TaskState ts = {0};
  */
 static SegmentDescriptor gdt[NSEGS] = {{0}};
 
-/* temporary kernel stack */
-uint8_t stack0[1024];
-
 /* gdt_init - initialize the default GDT and TSS */
 void GDTInitialize(void) 
 {
     // set boot kernel stack and default SS0
     // load_esp0((uintptr_t)bootstacktop);
     ts.ss0 = KERNEL_DS;
-    ts.esp0 = (uint32_t)&stack0 + sizeof(stack0);//(uint32_t)bootstacktop;
+    ts.esp0 = (uint32_t)bootstacktop;
 
     gdt[0] = SEG_NULL,
     gdt[SEG_KCODE] = SEG(STA_X | STA_R, 0x0, 0xFFFFFFFF, DPL_KERNEL);

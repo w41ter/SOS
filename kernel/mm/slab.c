@@ -90,7 +90,7 @@ static void CacheInsertSlabPage(Cache *cache, SlabPage *slab)
 
 static SlabPage * ExtendSlabPage(Cache *cache) 
 {
-    Page *page = PhysicAllocatePages(1);
+    Page *page = PhysicAllocatePage();
     if (!page)
         panic("[slab] - alloc a physical page failed.");
 

@@ -133,7 +133,8 @@ void IDEInitialize(void)
             model[i] = '\0';
         } while (i -- > 0 && model[i] == ' ');
 
-        printk("ide %d: %10u(sectors), '%s'.\n", ideno, IDEDevices[ideno].size, IDEDevices[ideno].model);
+        printk(" [+] ide %d: %10u(sectors), '%s'.\n", 
+            ideno, IDEDevices[ideno].size, IDEDevices[ideno].model);
     }
 
     // enable ide interrupt

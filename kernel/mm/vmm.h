@@ -3,6 +3,7 @@
 
 #include <libs/list.h>
 #include <libs/types.h>
+#include <trap/traps.h>
 
 // A virtual address 'la' has a three-part structure as follows:
 //
@@ -59,5 +60,10 @@ typedef uint32_t PageTableEntity;
 
 void PagingInitialize(void);
 void PrintPageDirectory(PageDirectoryEntity *pde);
-void OnPageFault();
+void OnPageFault(TrapFrame *tf);
+uintptr_t GetInitializePageDirctory(void);
+
+/* kmalloc&kfree */
+#include <mm/slab.h>
+
 #endif 

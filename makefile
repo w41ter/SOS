@@ -30,10 +30,10 @@ export AS = $(TOOLPREFIX)gas
 export LD = $(TOOLPREFIX)ld
 export OBJCOPY = $(TOOLPREFIX)objcopy
 export OBJDUMP = $(TOOLPREFIX)objdump
-export CFLAGS = -gstabs -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -std=gnu99
+export CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -gstabs -m32 -Werror -fno-omit-frame-pointer -std=gnu99
 #CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -fvar-tracking -fvar-tracking-assignments -O0 -g -Wall -MD -gdwarf-2 -m32 -Werror -fno-omit-frame-pointer
 export CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
-export ASFLAGS = -gstabs -m32  -Wa,-divide # -gdwarf-2
+export ASFLAGS = -m32  -Wa,-divide -gstabs  # -gdwarf-2
 
 # FreeBSD ld wants ``elf_i386_fbsd''
 export LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
