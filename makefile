@@ -42,17 +42,31 @@ VPATH = ./boot ./kernel
 
 .PHONY: all
 all:
-	rm -rf disk.img ./boot/bootblock ./kernel/kernel
+	rm -rf disk.img ./boot/bootblock ./kernel/kernelcontent
 	@echo "Building bootloader"
 	make -C ./boot
 	@echo "Building kernel"
-	make -C ./kernel kernel
-
-disk.img: 
+	make -C ./kernel kernelcontent
 	@echo "Building image file"
 	dd if=/dev/zero of=disk.img bs=512 count=10000
 	dd if=boot/bootblock of=disk.img bs=512 count=1 conv=notrunc
-	dd if=kernel/kernel of=disk.img bs=512 count=2000 seek=1 conv=notrunc
+	dd if=kernel/kernelcontent of=disk.img bs=512 count=2000 seek=1 conv=notrunc
+	@echo "Building success..."
+	@echo " "
+
+bootblock:
+	make -C ./boot
+
+kernelcontent:
+	make -C ./kernel kernelcontent
+
+disk.img: bootblock kernelcontent
+	@echo "Building image file"
+	dd if=/dev/zero of=disk.img bs=512 count=10000
+	dd if=boot/bootblock of=disk.img bs=512 count=1 conv=notrunc
+	dd if=kernel/kernelcontent of=disk.img bs=512 count=2000 seek=1 conv=notrunc
+	@echo "Building success..."
+	@echo " "
 
 # try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)

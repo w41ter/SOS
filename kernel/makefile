@@ -16,11 +16,11 @@ include ./trap/makefile
 include ./syscall/makefile
 include ./proc/makefile
 
-kernel: $(OBJECTS) kernel.ld
+kernelcontent: $(OBJECTS) kernel.ld
 	@echo $(OBJECTS)
-	$(LD) $(LDFLAGS) -T kernel.ld -o kernel $(OBJECTS)  -b binary  
-	$(OBJDUMP) -S kernel > kernel.asm
-	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
+	$(LD) $(LDFLAGS) -T kernel.ld -o kernelcontent $(OBJECTS)  -b binary  
+	$(OBJDUMP) -S kernelcontent > kernel.asm
+	$(OBJDUMP) -t kernelcontent | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
 
 # for dependence
 %.d: %.c
@@ -33,4 +33,4 @@ DEPENDENCE_FILES = $(patsubst %.o, %.d, $(OBJECTS))
 .PHONY: clean
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
-	$(OBJECTS) $(DEPENDENCE_FILES) *.asm *.sym trap/vectors.S kernel \
+	$(OBJECTS) $(DEPENDENCE_FILES) *.asm *.sym trap/vectors.S kernelcontent \
