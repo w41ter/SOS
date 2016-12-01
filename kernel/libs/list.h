@@ -49,14 +49,16 @@ struct list_t {
         tmpname != list_end();                  \
         tmpname = list_node_prev(tmpname))
 
-static inline void list_node_init(struct list_node_t *node) {
+static inline void list_node_init(struct list_node_t *node) 
+{
     assert(node != NULL);
     node->prev = list_end();
     node->next = list_end();
     node->list = NULL;
 }
 
-static inline void list_init(struct list_t *list) {
+static inline void list_init(struct list_t *list) 
+{
     assert(list != NULL);
     list->head = NULL;
     list->tail = NULL;
@@ -64,7 +66,8 @@ static inline void list_init(struct list_t *list) {
 }
 
 static inline struct list_node_t *list_append(
-    struct list_t *list, struct list_node_t *node) {
+    struct list_t *list, struct list_node_t *node) 
+{
     assert(list != NULL && node != NULL);
     list_node_init(node);
     node->list = list;
@@ -82,7 +85,8 @@ static inline struct list_node_t *list_append(
 }
 
 static inline struct list_node_t *list_prepend(
-    struct list_t *list, struct list_node_t *node) {
+    struct list_t *list, struct list_node_t *node) 
+{
     assert(list != NULL && node != NULL);
     list_node_init(node);
     node->list = list;
@@ -101,7 +105,8 @@ static inline struct list_node_t *list_prepend(
 
 // new node will be insert before at old node. 
 static inline struct list_node_t *list_insert(
-    struct list_node_t *old_node, struct list_node_t *new_node) {
+    struct list_node_t *old_node, struct list_node_t *new_node) 
+{
     assert(old_node != NULL && new_node != NULL);
     struct list_t *list = list_from_node(old_node);
     struct list_node_t *head = list_head(list);
@@ -121,7 +126,8 @@ static inline struct list_node_t *list_insert(
     return new_node;
 }
 
-static inline struct list_node_t *list_remove(struct list_node_t *node) {
+static inline struct list_node_t *list_remove(struct list_node_t *node) 
+{
     assert(node != NULL);
     struct list_t *list = list_from_node(node);
     if (list_size(list) == 1) {
@@ -143,7 +149,8 @@ static inline struct list_node_t *list_remove(struct list_node_t *node) {
 }
 
 static inline struct list_node_t *list_replace(
-    struct list_node_t *old_node, struct list_node_t *new_node) {
+    struct list_node_t *old_node, struct list_node_t *new_node) 
+{
     assert(old_node != NULL && new_node != NULL);
     struct list_t *list = list_from_node(old_node);
     list_node_init(new_node);
@@ -169,7 +176,8 @@ static inline struct list_node_t *list_replace(
     return old_node;
 }
 
-static inline void list_move(struct list_t *dest, struct list_t *src) {
+static inline void list_move(struct list_t *dest, struct list_t *src) 
+{
     assert(dest != NULL && src != NULL);
     list_init(dest);
     dest->head = list_head(src);
@@ -179,6 +187,40 @@ static inline void list_move(struct list_t *dest, struct list_t *src) {
         node->list = dest;
     }
     list_init(src);
+}
+
+static inline struct list_node_t * list_pop_back(struct list_t *list) 
+{
+    assert(list != NULL);
+    if (list_size(list) == 0)
+        return list_end();
+    if (list_size(list) == 1) {
+        struct list_node_t *res = list_head(list);
+        list_node_init(res);
+        list_init(list);
+        return res;
+    }
+    else {
+        struct list_node_t *res = list_tail(list);
+        list_node_prev(res)->next = list_end();
+        list_node_init(res);
+        return res;
+    }
+}
+
+typedef bool (*list_node_sort)(struct list_node_t *, struct list_node_t*);
+
+/* insert node in the first time sort return true. */
+static inline void list_insert_with_sort(
+    struct list_t *list, struct list_node_t *node, list_node_sort sort) 
+{
+    assert(list && node && sort && "nullptr exception");
+    list_for_each(tmp, list) {
+        if (sort(tmp, node)) {
+            list_insert(tmp, node);
+            break;
+        }
+    }
 }
 
 #endif /* _LIST_H_ */
