@@ -1,4 +1,5 @@
 #include <x86.h>
+#include <mm/memlayout.h>
 #include <libs/types.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
@@ -304,15 +305,40 @@ static inline uint32_t read_ebp(void)
     return ebp;
 }
 
+static inline uint32_t read_esp(void) 
+{
+    uint32_t esp;
+    asm volatile ("movl %%esp, %0" : "=r" (esp));
+    return esp;
+}
+
 void print_stack_frame(void) 
 {
     uint32_t ebp = read_ebp(), eip = read_eip();
 
-    for (int i = 0; ebp != 0 && i < STACKFRAME_DEPTH; i ++) {
-		printk("    [%d] ", i);
-        print_debug_info(eip - 1);
+    for (int i = 0; ebp != 0 && i < STACKFRAME_DEPTH + 1; i ++) {
+        if (ebp > (uint32_t)P2V(GetLowMemoryTop()) || ebp < KERNEL_BASE)
+            break;
+        if (i > 0) {
+		    printk("    [%d] ", i);
+            print_debug_info(eip - 1);
+        }
         eip = ((uint32_t *)ebp)[1];
         ebp = ((uint32_t *)ebp)[0];
+    }
+}
+
+void print_stack_data(void)
+{
+    uint32_t *esp = (uint32_t *)read_ebp();
+    esp += 2;
+    printk("*** stack data, esp: 0x%08x\n", esp);
+    for (int i = 0; i < 10; ++i) {
+        if ((void*)esp > P2V(GetLowMemoryTop()) 
+            || (uint32_t)esp < KERNEL_BASE)
+            break;
+        printk("  [%d] 0x%08x\n", i, esp[0]);
+        esp++;
     }
 }
 
@@ -324,7 +350,6 @@ void panic(const char *msg)
 	printk("*** System panic: %s\n", msg);
 	print_stack_frame();
     print_current_status();
-	printk("***\n");
 	
 	// 致命错误发生后打印栈信息后停止在这里
 	while(1) {

@@ -285,3 +285,12 @@ void * PageToVirtualAddress(Page *page)
     size_t pageIndex = page - pages;
     return P2V(pageIndex * PAGE_SIZE);
 }
+
+Page * VirtualAddressToPage(void *address)
+{
+    uint32_t phy = V2P(address);
+    if (phy > GetLowMemoryTop()) {
+        panic("VirtualAddressToPage called with invalid pa");
+    }
+    return &pages[phy >> 12];
+}

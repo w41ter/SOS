@@ -40,11 +40,15 @@ export LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
 
 VPATH = ./boot ./kernel
 
-disk.img: boot kernel
+.PHONY: all
+all:
+	rm -rf disk.img ./boot/bootblock ./kernel/kernel
 	@echo "Building bootloader"
 	make -C ./boot
 	@echo "Building kernel"
 	make -C ./kernel kernel
+
+disk.img: 
 	@echo "Building image file"
 	dd if=/dev/zero of=disk.img bs=512 count=10000
 	dd if=boot/bootblock of=disk.img bs=512 count=1 conv=notrunc

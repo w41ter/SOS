@@ -23,3 +23,4 @@ void PhysicFreePages(Page *base, size_t n);
 Page * PhysicAllocatePage();
 void PhysicFreePage(Page *page);
 void * PageToVirtualAddress(Page *page);
+Page * VirtualAddressToPage(void *address);

@@ -1,5 +1,6 @@
 #include <x86.h>
 #include <trap/traps.h>
+#include <libs/ulib.h>
 #include <libs/types.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
@@ -21,7 +22,7 @@ int main(void)
 {
     SetupDevice();
 
-    Test();
+    //Test();
 
     ProcessInitialize();
 
@@ -58,8 +59,7 @@ static void SetupDevice(void)
 
 static void Idle(void)
 {
-    sti();
-
+    sti(); 
     while (true) {
         hlt();
     }

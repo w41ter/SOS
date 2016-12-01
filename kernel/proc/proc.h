@@ -38,14 +38,14 @@ typedef struct ProcessContext {
 
 typedef struct ProcessControlBlock {
     enum ProcessState state;                    // Process state
-    int runs;                                   // the running times of Proces
     int exitCode;                              // exit code (be sent to parent proc)
     int counter;                             // time slice for occupying the CPU
     int pid;                                    // Process ID
+    bool killed;                                // 
     uint32_t priority;                          // Process schedule priority
     uint32_t flags;                             // Process flag
-    uintptr_t kstack;                           // Process kernel stack
     uintptr_t cr3;                              // CR3 register: the base addr of Page Directroy Table(PDT)
+    char * kstack;                           // Process kernel stack
     TrapFrame *tf;                              // Trap frame for current interrupt
     struct ProcessControlBlock *parent;         // the parent process
     char name[PROC_NAME_LEN + 1];               // Process name
@@ -58,3 +58,9 @@ typedef struct ProcessControlBlock {
 void ProcessInitialize(void);
 ProcessControlBlock * GetCurrentProcess(void);
 void SetCurrentProcess(ProcessControlBlock *pcb);
+
+int ProcessFork(void);
+void ProcessYield(void);
+void ProcessExit(int exitCode);
+void ProcessSleep(void);
+void ProcessWakeup(ProcessControlBlock *process);

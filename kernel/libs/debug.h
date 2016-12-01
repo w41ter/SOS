@@ -12,6 +12,7 @@
 
 void panic(const char *msg);
 void print_stack_frame(void);
+void print_stack_data(void);
 void print_current_status(void);
 
 

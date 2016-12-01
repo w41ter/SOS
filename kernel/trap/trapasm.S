@@ -15,9 +15,6 @@ AllTraps:
   movw $(KERNEL_DS), %ax
   movw %ax, %ds
   movw %ax, %es
-  # movw $(SEG_KCPU<<3), %ax
-  # movw %ax, %fs
-  # movw %ax, %gs
 
   # Call Trap(tf), where tf=%esp
   pushl %esp
@@ -32,5 +29,5 @@ TrapRet:
   popl %fs
   popl %es
   popl %ds
-  addl $0x8, %esp  # trapno and errcode
+  addl $0x8, %esp  # trapno and errcode  
   iret

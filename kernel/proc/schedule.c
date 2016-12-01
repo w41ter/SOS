@@ -1,4 +1,6 @@
 #include <x86.h>
+#include <param.h>
+#include <mm/segment.h>
 #include <libs/list.h>
 #include <libs/types.h>
 #include <libs/stdio.h>
@@ -10,9 +12,21 @@ extern void ProcessSwitchTo(ProcessContext *from, ProcessContext *to);
 
 extern struct list_t ProcessList; // proc.c
 
-static void Schedule(void)
+static void RunPorcess(ProcessControlBlock *next)
 {
-    cli();
+    assert(next && "nullptr exception");
+
+    ProcessControlBlock *current = GetCurrentProcess();
+
+    next->state = PS_Running;
+    SetCurrentProcess(next);
+    LoadESP0((uint32_t)next->kstack + KSTACKSIZE);
+    ProcessSwitchTo(&current->context, &next->context);
+}
+
+void Schedule(void)
+{
+    //cli();
     ProcessControlBlock *p = NULL, *next = NULL;
     list_for_each(node, &ProcessList) {
         p = GET_PCB_FROM_LIST_NODE(node);
@@ -26,20 +40,12 @@ static void Schedule(void)
     }
 
     assert(next && "logic error");
-
-    ProcessControlBlock *current = GetCurrentProcess();
-
-    next->state = PS_Running;
-    SetCurrentProcess(next);
-    ProcessSwitchTo(&current->context, &next->context);
-    sti();
-
     printk("--=== current process pid is: %d\n", next->pid);
+    RunPorcess(next);
+    //sti();
 }
 
 void OnTimer(void)
 {
-    ProcessControlBlock *current = GetCurrentProcess();
-    current->state = PS_Ready;
-    Schedule();
+    ProcessYield();
 }

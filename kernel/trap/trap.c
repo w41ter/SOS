@@ -70,6 +70,8 @@ static const char * TrapName(int trapno) {
     if (trapno >= T_IRQ0 && trapno < T_IRQ0 + 16) {
         return "Hardware Interrupt";
     }
+    if (trapno == T_SYSCALL)
+        return "System call";
     return "(unknown trap)";
 }
 
@@ -119,29 +121,21 @@ static bool IsTrapInKernel(TrapFrame *tf)
 
 static void PrintRegs(TrapFrame *tf) 
 {
-    printk("  edi  0x%08x\n", tf->edi);
-    printk("  esi  0x%08x\n", tf->esi);
-    printk("  ebp  0x%08x\n", tf->ebp);
-    printk("  oesp 0x%08x\n", tf->oesp);
-    printk("  ebx  0x%08x\n", tf->ebx);
-    printk("  edx  0x%08x\n", tf->edx);
-    printk("  ecx  0x%08x\n", tf->ecx);
-    printk("  eax  0x%08x\n", tf->eax);
+    printk("  edi  0x%08x | esi  0x%08x\n", tf->edi, tf->esi);
+    printk("  ebp  0x%08x | oesp 0x%08x\n", tf->ebp, tf->oesp);
+    printk("  ebx  0x%08x | edx  0x%08x\n", tf->ebx, tf->edx);
+    printk("  ecx  0x%08x | eax  0x%08x\n", tf->ecx, tf->eax);
 }
 
 void PrintTrapFrame(TrapFrame *tf) 
 {
     printk("trapframe at %p\n", tf);
     PrintRegs(tf);
-    printk("  ds   0x----%04x\n", tf->ds);
-    printk("  es   0x----%04x\n", tf->es);
-    printk("  fs   0x----%04x\n", tf->fs);
-    printk("  gs   0x----%04x\n", tf->gs);
+    printk("  ds   0x----%04x | es   0x----%04x\n", tf->ds, tf->es);
+    printk("  fs   0x----%04x | gs   0x----%04x\n", tf->fs, tf->gs);
     printk("  trap 0x%08x %s\n", tf->trapno, TrapName(tf->trapno));
-    printk("  err  0x%08x\n", tf->err);
-    printk("  eip  0x%08x\n", tf->eip);
-    printk("  cs   0x----%04x\n", tf->cs);
-    printk("  flag 0x%08x ", tf->eflags);
+    printk("  err  0x%08x | eip  0x%08x\n", tf->err, tf->eip);
+    printk("  cs   0x----%04x | flag 0x%08x ", tf->cs, tf->eflags);
 
     for (int i = 0, j = 1; i < sizeof(IA32flags) / sizeof(IA32flags[0]); i ++, j <<= 1) {
         if ((tf->eflags & j) && IA32flags[i] != NULL) {
@@ -151,8 +145,7 @@ void PrintTrapFrame(TrapFrame *tf)
     printk("IOPL=%d\n", (tf->eflags & FL_IOPL_MASK) >> 12);
 
     if (!IsTrapInKernel(tf)) {
-        printk("  esp  0x%08x\n", tf->esp);
-        printk("  ss   0x----%04x\n", tf->ss);
+        printk("  esp  0x%08x | ss   0x----%04x\n", tf->esp, tf->ss);
     }
 }
 
@@ -173,7 +166,7 @@ static void DispatchTrap(TrapFrame *tf)
         OnPageFault(tf);
         break;
     case T_SYSCALL:
-        SystemCall();
+        SolveSystemCall(tf);
         break;
     case T_IRQ0 + IRQ_IDE1:
     case T_IRQ0 + IRQ_IDE2:
@@ -183,7 +176,7 @@ static void DispatchTrap(TrapFrame *tf)
         // in kernel, it must be a mistake
         if ((tf->cs & 3) == 0) {
             PrintTrapFrame(tf);
-            panic("unexpected trap in kernel.\n");
+            panic("unexpected trap in kernel.");
         }
     }
 }

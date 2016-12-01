@@ -113,6 +113,7 @@ typedef struct TaskState {
     uint16_t iomb;       // i/o map base address
 } __attribute__((packed)) TaskState;
 
+void LoadESP0(uint32_t at);
 void GDTInitialize(void);
 
 #endif

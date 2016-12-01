@@ -78,7 +78,9 @@ typedef struct TrapFrame {
 	uint16_t padding6;
 } TrapFrame;
 
+void TrapRet(void);
 void PICEnable(int irq);
 void PICInitialize(void);
 void IDTInitialize(void);
 void TrapVectrosInitialize(void);
+void PrintTrapFrame(TrapFrame *tf);
