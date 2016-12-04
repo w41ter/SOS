@@ -1,23 +1,29 @@
 #include <libs/types.h>
 #include <libs/debug.h>
 #include <libs/stdio.h>
+#include <libs/unistd.h>
 #include <libs/vsprintf.h>
 #include <trap/traps.h>
 #include <proc/proc.h>
 
-#define SYS_exit            1
-#define SYS_fork            2
-
 static int
-sys_exit(uint32_t arg[]) {
+sys_exit(uint32_t arg[]) 
+{
     int error_code = (int)arg[0];
     ProcessExit(error_code);
     return 0;
 }
 
 static int
-sys_fork(uint32_t arg[]) {
+sys_fork(uint32_t arg[]) 
+{
     return ProcessFork();
+}
+
+static int
+sys_getpid(uint32_t arg[]) 
+{
+    return ProcessGetPid();
 }
 
 static int (*syscalls[])(uint32_t arg[]) = {
@@ -27,7 +33,8 @@ static int (*syscalls[])(uint32_t arg[]) = {
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))
 
-void SolveSystemCall(TrapFrame *tf) {
+void SolveSystemCall(TrapFrame *tf) 
+{
     // Ensure current trap frame always correct.
     ProcessControlBlock *current = GetCurrentProcess();
     current->tf = tf;
@@ -52,7 +59,8 @@ void SolveSystemCall(TrapFrame *tf) {
 
 #define MAX_ARGS 5
 
-int SystemCall(int num, ...) {
+int SystemCall(int num, ...) 
+{
     va_list ap;
     va_start(ap, num);
     uint32_t a[MAX_ARGS];

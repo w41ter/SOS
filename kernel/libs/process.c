@@ -12,3 +12,8 @@ int exit(int exit_code)
 {
     return SystemCall(SYS_exit, exit_code);
 }
+
+int getpid(void)
+{
+    return SystemCall(SYS_getpid);
+}

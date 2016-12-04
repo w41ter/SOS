@@ -375,3 +375,9 @@ void SetCurrentProcess(ProcessControlBlock *pcb)
     assert(pcb && "nullptr exception");
     current = pcb;
 }
+
+int ProcessGetPID(void)
+{
+    ProcessControlBlock *current = GetCurrentProcess();
+    return current->pid;
+}

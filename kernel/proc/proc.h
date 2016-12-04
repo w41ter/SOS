@@ -61,6 +61,7 @@ void SetupProcessManager(void);
 ProcessControlBlock * GetCurrentProcess(void);
 void SetCurrentProcess(ProcessControlBlock *pcb);
 
+int ProcessGetPID(void);
 int ProcessFork(void);
 void ProcessYield(void);
 void ProcessWait(void);
