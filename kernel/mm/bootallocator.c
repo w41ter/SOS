@@ -1,5 +1,4 @@
-#include <mm/vmm.h>
-#include <mm/memlayout.h>
+#include <mm/mm.h>
 #include <mm/bootallocator.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
@@ -7,14 +6,16 @@
 struct BootAllocator {
     uint32_t start;
     uint32_t free;
-} bootAllocator;
+};
 
-extern PageDirectoryEntity entrypgdir[];
+static struct BootAllocator  bootAllocator;
+
+extern PageDirectoryEntity entrypgdir[];    // main.c
 
 /** 
  * NOTICE: free 是物理地址
  */
-void BootAllocatorSetup(uint32_t free) 
+void SetupBootAllocator(uint32_t free) 
 {
     assert(free < KERNEL_BASE && "Free address must be physic.");
     printk(" [+] setup boot allocator at 0x%08x\n", free);

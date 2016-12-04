@@ -1,6 +1,6 @@
-#include <driver/vgatext.h>
-#include <mm/memlayout.h>
 #include <x86.h>
+#include <mm/mm.h>
+#include <driver/vgatext.h>
 
 // VGA 的显示缓冲的起点是 0xB8000
 static uint16_t *VideoMemory = (uint16_t *)(KERNEL_BASE + 0xB8000);

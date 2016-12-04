@@ -349,7 +349,7 @@ void panic(const char *msg)
     
 	printk("*** System panic: %s\n", msg);
 	print_stack_frame();
-    print_current_status();
+    //print_current_status();
 	
 	// 致命错误发生后打印栈信息后停止在这里
 	while(1) {

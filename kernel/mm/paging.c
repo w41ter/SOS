@@ -1,14 +1,11 @@
 #include <x86.h>
-#include <mm/vmm.h>
-#include <mm/memlayout.h>
+#include <mm/mm.h>
 #include <mm/bootallocator.h>
 #include <libs/debug.h>
 #include <libs/string.h>
 #include <libs/stdio.h>
 
-static PageDirectoryEntity *pgdir;
-
-extern uint32_t memorySize;
+static PageDirectoryEntity *BootPGDir;
 
 static bool IsPagePersent(uint32_t page) 
 {
@@ -20,56 +17,9 @@ static bool IsLargePage(uint32_t page)
     return page & PTE_PS;
 }
 
-void PagingInitialize(void) 
+static bool IsUserAccess(uint32_t page)
 {
-    printk(" [+] setup paging.\n");
-
-    pgdir = P2V(BootAllocPage());
-
-    assert(pgdir != NULL);
-
-    /* clear page dir */
-    memset(pgdir, 0, PAGE_SIZE);
-
-    uint32_t topAddr = memorySize > V2P(KERNEL_TOP)
-        ? V2P(KERNEL_TOP) : memorySize;
-    
-    topAddr = 0x1000000;
-
-    /* Clear virtual address's [0, 4MB) to physical address's [0, 4MB) map */
-    pgdir[0] = PTE_P | PTE_W | PTE_PS;
-
-    /*
-     * Map [0, topAddr) to [KERNEL_BASE, KERNEL_BAST + topAddr)
-     */
-    printk("  [+] now to map [0, 0x%08x) to [0x%08x, 0x%08x)\n",
-        topAddr, P2V(0), P2V(topAddr));
-    for (uint32_t phyAddr = 0; phyAddr < topAddr;) {
-        uint32_t virtualAddr = (uint32_t)P2V(phyAddr);
-
-        PageTableEntity *pgtab = P2V(BootAllocPage());
-        assert(pgtab != NULL);
-        memset(pgtab, 0, PAGE_SIZE);
-
-        /* Fill all entries of page table */
-        uint32_t tmpVirtualAddr = virtualAddr;
-        for (size_t i = 0; i < NPDENTRIES; ++i) {
-            pgtab[PTX(tmpVirtualAddr)] = (phyAddr & PAGE_MASK) | PTE_P | PTE_W;
-            tmpVirtualAddr += PAGE_SIZE;
-            phyAddr += PAGE_SIZE;
-            if (phyAddr >= topAddr) 
-                break;
-        }
-
-        /* Fill page directory entry */
-        pgdir[PDX(virtualAddr)] = (V2P(pgtab) & PAGE_MASK) | PTE_P | PTE_W;
-    }
-
-    /* Refresh paging directory */
-    lcr3(V2P(pgdir));
-    
-    // PrintPageDirectory(pgdir);
-    // hlt();
+    return page & PTE_U;
 }
 
 static void PrintMap(uint32_t pde_idx, uint32_t bi,
@@ -133,13 +83,77 @@ void PrintPageDirectory(PageDirectoryEntity *pde)
     printk("--------------------- END ---------------------\n");
 }
 
-uintptr_t GetInitializePageDirctory(void)
+PageDirectoryEntity *GetBootPageDirectory(void)
 {
-    assert(pgdir && "pgdir is nullptr");
-    return V2P(pgdir);
+    assert(BootPGDir && "pgdir is nullptr");
+    return BootPGDir;
 }
 
-void OnPageFault(TrapFrame *tf)
+uintptr_t GetInitializePageDirctory(void)
+{
+    assert(BootPGDir && "pgdir is nullptr");
+    return V2P(BootPGDir);
+}
+
+static PageTableEntity * GetPageTableWithAlloc(
+    PageDirectoryEntity *pgdir, uintptr_t va, size_t flags)
+{
+    size_t pdx = PDX(va);
+    assert(pgdir && pdx < PDX(KERNEL_BASE));
+
+    if (IsPagePersent(pgdir[pdx]))
+        return (PageTableEntity *)((uint32_t)pgdir[pdx] & PAGE_MASK);
+    
+    Page * page = PhysicAllocatePage();
+    if (!page)
+        panic("no enough memory to allocate pte");
+    PageTableEntity *pte = (PageTableEntity*)PageToVirtualAddress(page);
+    memset(pte, 0, PAGE_SIZE);
+    pgdir[pdx] = V2P(pte) | PTE_P | PTE_W | flags ;
+    return pte;
+}
+
+void MapUserSpacePage(PageDirectoryEntity *pgdir, 
+    uintptr_t va, uintptr_t pa, size_t flags)
+{
+    assert(pgdir && "nullptr exception");
+    assert(USER_ACCESS(va, va+1));
+    assert(!(va & PAGE_OFFSET) && !(pa & PAGE_OFFSET)
+        && "address must align with page");
+
+    PageTableEntity *pte = GetPageTableWithAlloc(pgdir, va, PTE_U);
+    size_t ptx = PTX(va);
+    pte[ptx] = (pa & PAGE_MASK) | flags | PTE_U | PTE_P;
+}
+
+PageDirectoryEntity * SetupPageDirectory(void)
+{
+    Page *page = PhysicAllocatePage();
+    if (page == NULL)
+        return NULL;
+    
+    PageDirectoryEntity *pde = (PageDirectoryEntity*)PageToVirtualAddress(page);
+    memcpy(pde, BootPGDir, PAGE_SIZE);
+    return pde;
+}
+
+void DestroyPageDirectory(PageDirectoryEntity *pgdir)
+{
+    size_t kernelPDXBase = PDX(KERNEL_BASE);
+    for (size_t i = 0; i < kernelPDXBase; ++i) {
+        uintptr_t pte = (uintptr_t)pgdir[i];
+        if (IsLargePage(pte))
+            continue;
+        PageTableEntity *tmp = (PageTableEntity *)P2V(pte & PAGE_MASK);
+        Page *page = VirtualAddressToPage(tmp);
+        PhysicFreePage(page);
+    }
+    PhysicFreePage(VirtualAddressToPage(pgdir));
+}
+
+/* Page fault */
+
+static void DefaultPageFault(TrapFrame *tf) 
 {
     /* error_code:
      * bit 0 == 0 means no page found, 1 means protection fault
@@ -152,4 +166,73 @@ void OnPageFault(TrapFrame *tf)
             (tf->err & 2) ? 'W' : 'R',
             (tf->err & 1) ? "protection fault" : "no page found");
     panic("");
+}
+
+#include <trap/traps.h>
+#include <proc/proc.h>
+
+void OnPageFault(TrapFrame *tf)
+{
+    uint32_t errorAt = rcr2();
+    PageDirectoryEntity *pgdir = GetCurrentProcess()->mm->pgdir;
+    PageTableEntity *pte = (PageTableEntity *)((uint32_t)pgdir[PDX(errorAt)] & PAGE_MASK);
+    assert(IsUserAccess(pte[PTX(errorAt)]));
+    PrintTrapFrame(tf);
+    DefaultPageFault(tf);
+}
+
+void SetupBootPaging(void) 
+{
+    printk(" [+] setup paging.\n");
+
+    BootPGDir = P2V(BootAllocPage());
+
+    assert(BootPGDir != NULL);
+
+    /* clear page dir */
+    memset(BootPGDir, 0, PAGE_SIZE);
+
+    uint64_t memorySize = GetPhysicMemorySize();
+    uint32_t topAddr = memorySize > V2P(KERNEL_TOP)
+        ? V2P(KERNEL_TOP) : memorySize;
+    
+    /* Clear virtual address's [0, 4MB) to physical address's [0, 4MB) map */
+    //BootPGDir[0] = PTE_P | PTE_W | PTE_PS;
+
+    /*
+     * Map [0, topAddr) to [KERNEL_BASE, KERNEL_BASE + topAddr)
+     */
+    printk("  [+] now to map [0, 0x%08x) to [0x%08x, 0x%08x)\n",
+        topAddr, P2V(0), P2V(topAddr));
+    for (uint32_t phyAddr = 0; phyAddr < topAddr;) {
+        uint32_t virtualAddr = (uint32_t)P2V(phyAddr);
+
+        PageTableEntity *pgtab = P2V(BootAllocPage());
+        assert(pgtab != NULL);
+        memset(pgtab, 0, PAGE_SIZE);
+
+        /* Fill all entries of page table */
+        uint32_t tmpVirtualAddr = virtualAddr;
+        for (size_t i = 0; i < NPDENTRIES; ++i) {
+            pgtab[PTX(tmpVirtualAddr)] = (phyAddr & PAGE_MASK) | PTE_P | PTE_W;
+            tmpVirtualAddr += PAGE_SIZE;
+            phyAddr += PAGE_SIZE;
+            if (phyAddr >= topAddr) 
+                break;
+        }
+
+        /* Fill page directory entry */
+        BootPGDir[PDX(virtualAddr)] = (V2P(pgtab) & PAGE_MASK) | PTE_P | PTE_W;
+    }
+
+    /* Refresh paging directory */
+    LoadPageDirectory(BootPGDir); 
+}
+
+void LoadPageDirectory(PageDirectoryEntity *pgdir)
+{
+    assert(pgdir && "nullptr exception");
+
+    lcr3(V2P(pgdir));
+    //asm volatile("invlpg");
 }

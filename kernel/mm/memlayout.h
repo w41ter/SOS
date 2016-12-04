@@ -13,6 +13,15 @@
 #define KERNEL_TOP  0xF8000000      // Kernel max high address
 #define KERNEL_LINK (KERNEL_BASE+EXTMEM)  // Address where kernel is linked
 
+#define USER_TOP    0xc0000000      // User max high address
+#define USER_BASE   0x00200000      // First user virtual address
+
+#define USER_ACCESS(start, end) \
+    (USER_BASE <= (start) && (start) < (end) && (end) < USER_TOP)
+
+#define KERNEL_ACCESS(start, end)  \
+    (USER_BKERNEL_BASEASE <= (start) && (start) < (end) && (end) < KERNEL_TOP)
+
 #define V2P(a) (((uint32_t) (a)) - KERNEL_BASE)
 #define P2V(a) (((void *) (a)) + KERNEL_BASE)
 

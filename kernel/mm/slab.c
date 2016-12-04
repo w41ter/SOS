@@ -1,6 +1,4 @@
-#include <mm/vmm.h>
-#include <mm/pmm.h>
-#include <mm/slab.h>
+#include <mm/mm.h>
 #include <libs/list.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
@@ -12,15 +10,15 @@
     (list_get(item, SlabPage, node))
 
 typedef struct SlabPage {             
-    size_t avail;/* Available objects */
-    size_t limit;/* Max objects in current SlabPage */
-    char *objectBase;/* Base address of object array */
+    size_t avail;           /* Available objects */
+    size_t limit;           /* Max objects in current SlabPage */
+    char *objectBase;       /* Base address of object array */
 
-    struct Cache *cache;/* Owner kmem_cache */
+    struct Cache *cache;    /* Owner kmem_cache */
     struct list_node_t node;
-    void *free[0];/* Free object pointer array in this
-                                       slab_page, this array is dynamic
-                                       allocated, array size is limit. */
+    void *free[0];          /* Free object pointer array in this
+                                slab_page, this array is dynamic
+                                allocated, array size is limit. */
 } SlabPage;
 
 typedef struct Cache {
@@ -34,7 +32,7 @@ typedef struct Cache {
 } Cache;
 
 #define CACHE_CHAIN_SIZE    9
-Cache CacheChain[9];
+static Cache CacheChain[9];
 
 static void SlabPageInitialize(SlabPage *page)
 {
@@ -43,7 +41,6 @@ static void SlabPageInitialize(SlabPage *page)
     page->limit = 0;
     page->objectBase = NULL;
     page->cache = NULL;
-    //page->free = NULL;
     list_node_init(&page->node);
 }
 

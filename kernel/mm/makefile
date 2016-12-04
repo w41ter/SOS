@@ -4,5 +4,6 @@ OBJECTS += mm/memlayout.o\
     mm/bootallocator.o\
     mm/paging.o\
     mm/slab.o\
+    mm/vmm.o\
 
 VPATH += ./mm

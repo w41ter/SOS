@@ -3,9 +3,9 @@
 #include <libs/debug.h>
 #include <libs/stdio.h>
 
-extern uint32_t MemorySizeInKB;
+extern uint32_t MemorySizeInKB;		// entry.S
 
-uint32_t LowMemoryTop;
+static uint32_t LowMemoryTop;
 
 uint64_t GetPhysicMemorySize(void) 
 {
@@ -86,14 +86,10 @@ unsigned int ProbesMemory(void)
 	} while (memKB < 4096 && memCount != 0);
 
     asm volatile("movl %0, %%cr0" : : "r" (cr0));
-//  
-// 	mem_end = memKB << 20;
-// 	mem = (unsigned long*) 0x413;
-// 	bse_end = (*mem & 0xFFFF) <<6;
-//  
+
 	outb(0x21, irq1);
 	outb(0xA1, irq2);
 
-    return memKB;// << 20;
+    return memKB;
 }
 

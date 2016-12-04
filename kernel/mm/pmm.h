@@ -16,11 +16,14 @@ enum {
     PG_Free = 1,
 };
 
-void PMMInitialize(void);
+void SetupPhysicMemoryManager(void);
+
 uint32_t SizeOfFreePhysicPage();
-Page* PhysicAllocatePages(size_t n);
-void PhysicFreePages(Page *base, size_t n);
+
+/* Physic memory allocator */
 Page * PhysicAllocatePage();
-void PhysicFreePage(Page *page);
-void * PageToVirtualAddress(Page *page);
+Page * PhysicAllocatePages(size_t n);
 Page * VirtualAddressToPage(void *address);
+void PhysicFreePage(Page *page);
+void PhysicFreePages(Page *base, size_t n);
+void * PageToVirtualAddress(Page *page);

@@ -13,10 +13,10 @@ typedef struct FreePhysicArea {
     uint32_t freeNumbers;
 } FreePhysicArea;
 
-FreePhysicArea freeArea;
+static FreePhysicArea freeArea;
 
 /* WARNING: no change it */
-Page *pages;
+static Page *pages;
 
 static void FreeAreaInitialize(FreePhysicArea *freeArea) 
 {
@@ -140,19 +140,19 @@ static void PMMAllocatorSetup(void)
     SlabSetup();
 }
 
-void PMMInitialize(void)
+void SetupPhysicMemoryManager(void)
 {
     extern char end[];
-    uint32_t kernelEnd = V2P(PGROUNDUP((void*)end));
+    uint32_t kernelPhysicEnd = V2P(PGROUNDUP((void*)end));
     
     printk("++ setup physic memory manager\n");
     printk(" [+] kernel load end at: 0x%08x\n", V2P(end));
 
     FindLowMemoryTop();
     /* for memory map */
-    BootAllocatorSetup(kernelEnd);
+    SetupBootAllocator(kernelPhysicEnd);
     PMMPageInitialize((uint32_t)end);
-    PagingInitialize();
+    SetupBootPaging();
     GDTInitialize();
     PMMZoneInitialize();
     PMMAllocatorSetup();

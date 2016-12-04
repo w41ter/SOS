@@ -1,4 +1,5 @@
 #include <x86.h>
+#include <mm/mm.h>
 #include <trap/traps.h>
 #include <libs/ulib.h>
 #include <libs/types.h>
@@ -6,10 +7,9 @@
 #include <libs/debug.h>
 #include <libs/string.h>
 #include <driver/device.h>
-#include <mm/vmm.h>
-#include <mm/pmm.h>
-#include <mm/memlayout.h>
 #include <proc/proc.h>
+#include <proc/schedule.h>
+#include <fs/filesystem.h>
 
 extern char end[];
 
@@ -20,24 +20,28 @@ void Test(void);
 
 int main(void) 
 {
-    SetupDevice();
-
-    //Test();
-
-    ProcessInitialize();
-
-    Idle();
-}
-
-static void SetupDevice(void)
-{
     ConsoleClear();
     
     printk("Begin init kernel...\n");
 
     /* Initialize physic memory manager */
-    PMMInitialize();
+    SetupPhysicMemoryManager();
 
+    SetupDevice();
+
+    SetupVirtualMemoryManager();
+
+    SetupFileSystem();
+
+    SetupProcessManager();
+
+    SetupScheduleManager();
+    
+    Idle();
+}
+
+static void SetupDevice(void)
+{
     /* Initialize the 8259A interrupt controllers. */
     PICInitialize();
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mm/vmm.h>
 #include <libs/list.h>
 #include <libs/types.h>
 #include <trap/traps.h>
@@ -47,6 +48,7 @@ typedef struct ProcessControlBlock {
     uintptr_t cr3;                              // CR3 register: the base addr of Page Directroy Table(PDT)
     char * kstack;                           // Process kernel stack
     TrapFrame *tf;                              // Trap frame for current interrupt
+    MemoryLayout *mm;
     struct ProcessControlBlock *parent;         // the parent process
     char name[PROC_NAME_LEN + 1];               // Process name
     struct list_node_t processLink;                     // Process link list
@@ -55,7 +57,8 @@ typedef struct ProcessControlBlock {
 
 #define GET_PCB_FROM_LIST_NODE(ptr) (list_get(ptr, ProcessControlBlock, processLink));
 
-void ProcessInitialize(void);
+void SetupProcessManager(void);
+
 ProcessControlBlock * GetCurrentProcess(void);
 void SetCurrentProcess(ProcessControlBlock *pcb);
 
