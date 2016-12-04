@@ -1,6 +1,9 @@
 #include <x86.h>
 #include <mm/mm.h>
+#include <proc/spinlock.h>
 #include <driver/vgatext.h>
+
+static SpinLock VideoLock;
 
 // VGA 的显示缓冲的起点是 0xB8000
 static uint16_t *VideoMemory = (uint16_t *)(KERNEL_BASE + 0xB8000);
@@ -53,6 +56,8 @@ void ConsolePutCharWithColor(char c,
     uint8_t attribute_byte = (back_color << 4) | (fore_color & 0x0F);
     uint16_t attribute = attribute_byte << 8;
 
+    Acquire(&VideoLock);
+
     // 0x08 是退格键的 ASCII 码
     // 0x09 是tab 键的 ASCII 码
     if (c == 0x08 && CursorX) {
@@ -80,6 +85,8 @@ void ConsolePutCharWithColor(char c,
 
     // 移动硬件的输入光标
     MoveCursor();
+
+    Release(&VideoLock);
 }
 
 void ConsolePutChar(char c)
@@ -98,4 +105,6 @@ void ConsoleClear(void)
     CursorX = 0;
     CursorY = 0;
     MoveCursor();
+
+    InitSpinLock(&VideoLock, "vga text lock");
 }

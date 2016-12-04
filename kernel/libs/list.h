@@ -36,6 +36,7 @@ struct list_t {
 #define list_end() ((struct list_node_t *)(NULL))
 
 // node get
+#define list_node_has_parent(node) ((node)->list != NULL)
 #define list_node_prev(node) ((node)->prev)
 #define list_node_next(node) ((node)->next)
 

@@ -8,6 +8,7 @@
 #include <libs/string.h>
 #include <driver/device.h>
 #include <proc/proc.h>
+#include <proc/spinlock.h>
 #include <proc/schedule.h>
 #include <fs/filesystem.h>
 
@@ -63,7 +64,7 @@ static void SetupDevice(void)
 
 static void Idle(void)
 {
-    sti(); 
+    PopClearInterupt();     /* see spinlock.c */
     while (true) {
         hlt();
     }

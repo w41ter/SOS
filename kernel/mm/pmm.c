@@ -5,6 +5,7 @@
 #include <mm/memlayout.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
+#include <proc/spinlock.h>
 
 #define GET_PAGE_FROM_LIST_NODE(ptr) (list_get((ptr), struct Page, node))
 
@@ -14,6 +15,8 @@ typedef struct FreePhysicArea {
 } FreePhysicArea;
 
 static FreePhysicArea freeArea;
+
+static SpinLock FreeAreaLock;
 
 /* WARNING: no change it */
 static Page *pages;
@@ -99,6 +102,8 @@ static void FreePhysicMemoryInitialize(uint32_t *base, uint32_t size)
         page++;
     }
 
+    InitSpinLock(&FreeAreaLock, "free area lock");
+
     // test
     page = GET_PAGE_FROM_LIST_NODE(list_head(&freeArea.list));
     assert(page && page->property == freeArea.freeNumbers
@@ -173,6 +178,8 @@ Page* PhysicAllocatePages(size_t n)
     if (n > SizeOfFreePhysicPage())
         return NULL;
 
+    Acquire(&FreeAreaLock);
+    
     assert(list_size(&freeArea.list) != 0);
     list_for_each(node, &freeArea.list) {
         Page *p = GET_PAGE_FROM_LIST_NODE(node);
@@ -205,6 +212,7 @@ Page* PhysicAllocatePages(size_t n)
                 tp->property = leave;
             }   
             freeArea.freeNumbers -= n;
+            Release(&FreeAreaLock);
             return p;
         }
         else {
@@ -216,6 +224,7 @@ Page* PhysicAllocatePages(size_t n)
     }
 
     /* can't find proper block when progress visit here. */
+    Release(&FreeAreaLock);
     return NULL;
 }
 
@@ -226,6 +235,8 @@ void PhysicFreePages(Page *base, size_t n)
         && "please no free memory out of range.");
     assert(n > 0 && "can not free zero page");
     assert(IsPageReserved(base) && "try to release unused memory.");
+
+    Acquire(&FreeAreaLock);
 
     Page *p = NULL;
     list_for_each(node, &freeArea.list) {
@@ -263,6 +274,7 @@ void PhysicFreePages(Page *base, size_t n)
     }
 
     freeArea.freeNumbers += n;
+    Release(&FreeAreaLock);
 }
 
 Page * PhysicAllocatePage()

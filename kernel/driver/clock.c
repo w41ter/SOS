@@ -48,6 +48,6 @@ extern void OnTimer(void);  // schedule.c
 void ClockInterupt(void)
 {
     ticks++;
-    if (ticks % 200 == 0)
+    if (ticks % 20 == 0)
         OnTimer(); 
 }

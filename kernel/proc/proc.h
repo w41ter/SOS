@@ -39,19 +39,18 @@ typedef struct ProcessContext {
 
 typedef struct ProcessControlBlock {
     enum ProcessState state;                    // Process state
-    int exitCode;                              // exit code (be sent to parent proc)
-    int counter;                             // time slice for occupying the CPU
+    int exitCode;                               // exit code (be sent to parent proc)
+    int counter;                                // time slice
     int pid;                                    // Process ID
     bool killed;                                // 
     uint32_t priority;                          // Process schedule priority
     uint32_t flags;                             // Process flag
-    uintptr_t cr3;                              // CR3 register: the base addr of Page Directroy Table(PDT)
-    char * kstack;                           // Process kernel stack
+    char * kstack;                              // Process kernel stack
     TrapFrame *tf;                              // Trap frame for current interrupt
-    MemoryLayout *mm;
+    MemoryLayout *mm;                           // Process memory layout
     struct ProcessControlBlock *parent;         // the parent process
     char name[PROC_NAME_LEN + 1];               // Process name
-    struct list_node_t processLink;                     // Process link list
+    struct list_node_t processLink;             // Process link list
     ProcessContext context;                     // Switch here to run process
 } ProcessControlBlock;
 
@@ -64,6 +63,7 @@ void SetCurrentProcess(ProcessControlBlock *pcb);
 
 int ProcessFork(void);
 void ProcessYield(void);
+void ProcessWait(void);
 void ProcessExit(int exitCode);
 void ProcessSleep(void);
 void ProcessWakeup(ProcessControlBlock *process);

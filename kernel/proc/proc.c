@@ -1,20 +1,25 @@
 #include <x86.h>
 #include <param.h>
 #include <mm/mm.h>
+#include <libs/atomic.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
 #include <libs/string.h>
 #include <proc/proc.h>
+#include <proc/spinlock.h>
 #include <proc/schedule.h>
 #include <trap/traps.h>
 
 struct list_t ProcessList;
 
+static SpinLock ProcessListLock;
+
 static ProcessControlBlock *idleProcess = NULL;   // idle proc
 static ProcessControlBlock *initProcess = NULL;   // init proc
 static ProcessControlBlock *current = NULL;    // current proc
 static uint32_t numberOfProcess = 0;
-static uint32_t currentPID = 0;
+
+static struct atomic_t currentPID = ATOMIC_INIT(-1);
 
 static ProcessControlBlock * AllocatePCB(void) {
     ProcessControlBlock *process = kmalloc(sizeof(ProcessControlBlock));
@@ -28,7 +33,6 @@ static ProcessControlBlock * AllocatePCB(void) {
     process->tf = NULL;
     process->mm = NULL;
     process->killed = false;
-    process->cr3 = GetInitializePageDirctory();
     process->flags = 0;
     process->counter = 0;
     list_node_init(&(process->processLink)); 
@@ -55,13 +59,34 @@ static void SetProcessName(ProcessControlBlock *process, const char *name)
 //     return process->name;
 // }
 
+
+static void ProcessListInsert(ProcessControlBlock *proc)
+{
+    assert(proc && "nullptr exception");
+    Acquire(&ProcessListLock);
+    list_append(&ProcessList, &proc->processLink);
+    numberOfProcess++;
+    Release(&ProcessListLock);
+}
+
+static void ProcessListRemove(ProcessControlBlock *proc)
+{
+    assert(proc && "nullptr exception");
+    assert(list_node_has_parent(&proc->processLink));
+
+    Acquire(&ProcessListLock);
+    list_remove(&proc->processLink);
+    numberOfProcess--;
+    Release(&ProcessListLock);
+}
+
 // get_pid - alloc a unique pid for process
 static uint32_t AllocUniquePID(void)
 {
     static_assert(MAX_PID > MAX_PROCESS);
-    if (MAX_PID <= currentPID)
+    if (MAX_PID <= atomic_read(&currentPID))
         panic("all pid used.");
-    return currentPID++;
+    return atomic_inc_return(&currentPID);
 }
 
 static void *AllocateStack(void)
@@ -155,6 +180,10 @@ static void ReleaseProcess(ProcessControlBlock *process)
     ReleaseMemoryLayout(process);
     FreeStack(process->kstack);
     process->kstack = NULL;
+
+    if (list_node_has_parent(&process->processLink))
+        ProcessListRemove(process);
+
     ReleasePCB(process);
 }
 
@@ -183,7 +212,7 @@ int ProcessFork(void)
 
     SetProcessName(process, current->name);
     process->state = PS_Ready;
-    list_append(&ProcessList, &process->processLink);
+    ProcessListInsert(process);
 
     return process->pid;
 
@@ -269,13 +298,6 @@ void ProcessYield(void)
     Schedule();
 }
 
-static void ProcessListInsert(ProcessControlBlock *proc)
-{
-    assert(proc && "nullptr exception");
-    list_append(&ProcessList, &proc->processLink);
-    numberOfProcess++;
-}
-
 static void SetupInitProcess(void)
 {
     extern char _binary_initcode_start[], _binary_initcode_size[];
@@ -336,7 +358,8 @@ void SetupProcessManager(void)
 {
     printk("** setup process manager.\n");
     list_init(&ProcessList);
-    
+    InitSpinLock(&ProcessListLock, "process list lock");
+
     SetupIdleProcess();
     SetupInitProcess();
 }

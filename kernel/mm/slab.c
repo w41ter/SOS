@@ -2,6 +2,7 @@
 #include <libs/list.h>
 #include <libs/stdio.h>
 #include <libs/debug.h>
+#include <proc/spinlock.h>
 
 #define VIRTUAL_ADDRESS_TO_SLAB_PAGE(ptr) \
     ((void *)(((uint32_t)ptr) & PAGE_MASK))
@@ -33,6 +34,8 @@ typedef struct Cache {
 
 #define CACHE_CHAIN_SIZE    9
 static Cache CacheChain[9];
+
+static SpinLock SlabLock;
 
 static void SlabPageInitialize(SlabPage *page)
 {
@@ -198,15 +201,21 @@ void SlabSetup(void)
 {
     printk(" [+] setup slab allocator\n");
     CacheChainInitialize();
+    InitSpinLock(&SlabLock, "slab lock");
 }
 
 void * kmalloc(size_t size)
 {
+    Acquire(&SlabLock);
     Cache *cache = GetObjectCache(size);
-    return AllocateObject(cache);
+    uint32_t *tmp = (uint32_t*)AllocateObject(cache);
+    Release(&SlabLock);
+    return tmp;
 }
 
 void kfree(void *ptr)
 {
+    Acquire(&SlabLock);
     FreeObject(ptr);
+    Release(&SlabLock);
 }

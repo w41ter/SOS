@@ -6,11 +6,14 @@
 #include <libs/stdio.h>
 #include <libs/debug.h>
 #include <proc/proc.h>
+#include <proc/spinlock.h>
 #include <proc/schedule.h>
 
 extern void ProcessSwitchTo(ProcessContext *from, ProcessContext *to);
 
 extern struct list_t ProcessList; // proc.c
+
+static SpinLock ScheduleLock;
 
 static void SwitchVM(ProcessControlBlock *next)
 {
@@ -34,7 +37,7 @@ static void RunPorcess(ProcessControlBlock *next)
 
 void Schedule(void)
 {
-    cli();
+    Acquire(&ScheduleLock);
     ProcessControlBlock *p = NULL, *next = NULL;
     for (;;) {
         p = NULL;
@@ -58,10 +61,10 @@ void Schedule(void)
         }
     }
 
+    Release(&ScheduleLock);
+    
     assert(next && "logic error");
     RunPorcess(next);
-    ProcessControlBlock *current = GetCurrentProcess();
-    sti();
 }
 
 void OnTimer(void)
@@ -72,4 +75,5 @@ void OnTimer(void)
 void SetupScheduleManager(void)
 {
     printk("++ setup schedule manager.\n");
+    InitSpinLock(&ScheduleLock, "schedule lock");
 }
