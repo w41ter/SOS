@@ -102,7 +102,7 @@ static PageTableEntity * GetPageTableWithAlloc(
     assert(pgdir && pdx < PDX(KERNEL_BASE));
 
     if (IsPagePersent(pgdir[pdx]))
-        return (PageTableEntity *)((uint32_t)pgdir[pdx] & PAGE_MASK);
+        return (PageTableEntity *)P2V((uint32_t)pgdir[pdx] & PAGE_MASK);
     
     Page * page = PhysicAllocatePage();
     if (!page)
@@ -111,6 +111,17 @@ static PageTableEntity * GetPageTableWithAlloc(
     memset(pte, 0, PAGE_SIZE);
     pgdir[pdx] = V2P(pte) | PTE_P | PTE_W | flags ;
     return pte;
+}
+
+static PageTableEntity *GetPageTable(PageDirectoryEntity *pgdir, uintptr_t va)
+{
+    size_t pdx = PDX(va);
+    assert(pgdir && pdx < PDX(KERNEL_BASE));
+
+    if (!IsPagePersent(pgdir[pdx]))
+        return NULL;
+    
+    return (PageTableEntity *)P2V((uint32_t)pgdir[pdx] & PAGE_MASK);
 }
 
 void MapUserSpacePage(PageDirectoryEntity *pgdir, 
@@ -124,6 +135,32 @@ void MapUserSpacePage(PageDirectoryEntity *pgdir,
     PageTableEntity *pte = GetPageTableWithAlloc(pgdir, va, PTE_U);
     size_t ptx = PTX(va);
     pte[ptx] = (pa & PAGE_MASK) | flags | PTE_U | PTE_P;
+}
+
+uintptr_t UnmapUserSpacePage(PageDirectoryEntity *pgdir, uintptr_t va)
+{
+    assert(pgdir && "nullptr exception");
+    assert(USER_ACCESS(va, va+1));
+    assert(!(va & PAGE_OFFSET) && "address must align with page");
+    
+    PageTableEntity *pte = GetPageTable(pgdir, va);
+    assert(pte != NULL);
+
+    size_t ptx = PTX(va);
+    assert(IsPagePersent((uintptr_t)pte[ptx]) && "unmap not exists page.");
+    uintptr_t page = (uintptr_t)pte[ptx] & PAGE_MASK;
+    
+    /* release empty page table */
+    pte[ptx] = 0;
+    for (size_t i = 0; i < 1024; ++i) {
+        if (IsPagePersent((uintptr_t)pte[i]))
+            return page;
+    }
+
+    pgdir[PDX(va)] = 0;
+    PhysicFreePage(VirtualAddressToPage((void*)pte));
+
+    return page;
 }
 
 PageDirectoryEntity * SetupPageDirectory(void)

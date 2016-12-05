@@ -24,7 +24,6 @@ static void SwitchVM(ProcessControlBlock *next)
 static void RunPorcess(ProcessControlBlock *next)
 {
     assert(next && "nullptr exception");
-
     ProcessControlBlock *current = GetCurrentProcess();
     
     next->counter --;
@@ -50,6 +49,7 @@ void Schedule(void)
                 next = p; 
                 counter = p->counter;
             }
+            //printk("pid=%d name=%s counter=%d\n", p->pid, p->name, p->counter);
         }
 
         if (next)   
@@ -61,6 +61,7 @@ void Schedule(void)
         }
     }
 
+    printk(" --== try to run pid: %d  name: %s\n", next->pid, next->name);
     Release(&ScheduleLock);
     
     assert(next && "logic error");

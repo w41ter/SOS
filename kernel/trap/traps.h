@@ -39,6 +39,8 @@
 #define IRQ_ERROR       19
 #define IRQ_SPURIOUS    31
 
+#ifndef __ASSEMBLER__
+
 #include <libs/types.h>
 
 // Layout of the trap frame built on the stack by the
@@ -84,3 +86,5 @@ void PICInitialize(void);
 void IDTInitialize(void);
 void TrapVectrosInitialize(void);
 void PrintTrapFrame(TrapFrame *tf);
+
+#endif // !__ASSEMBLER__

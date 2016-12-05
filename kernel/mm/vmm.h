@@ -11,10 +11,13 @@
 /* paging */
 #include <mm/paging.h>
 
+struct MemoryLayout;
+
 typedef struct MemoryArea {
     uint32_t start;
     uint32_t end;
     uint32_t flags;
+    struct MemoryLayout *layout;
     struct list_node_t node;
 } MemoryArea;
 
@@ -27,7 +30,7 @@ typedef struct MemoryLayout {
 #define GET_MEMORY_AREA_FROM_LIST_NODE(ptr) (list_get(ptr, MemoryArea, node))
 
 void SetupVirtualMemoryManager(void);
-void InitUserVM(PageDirectoryEntity *pgdir, void *start, size_t size);
+void InitUserVM(MemoryLayout *mm, void *start, size_t size);
 
 /* virtual memory */
 MemoryLayout * MemoryLayoutCreate(void);

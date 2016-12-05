@@ -63,6 +63,7 @@ static void SetProcessName(ProcessControlBlock *process, const char *name)
 static void ProcessListInsert(ProcessControlBlock *proc)
 {
     assert(proc && "nullptr exception");
+    printk("insert process pid=%d\n", proc->pid);
     Acquire(&ProcessListLock);
     list_append(&ProcessList, &proc->processLink);
     numberOfProcess++;
@@ -147,7 +148,7 @@ static int CopyMemoryLayout(ProcessControlBlock *proc, MemoryLayout *pmm)
     }
 
     proc->mm->pgdir = SetupPageDirectory();
-    if (proc->mm->pgdir != 0) 
+    if (proc->mm->pgdir == NULL) 
         goto SETUP_PAGE_FALSE;
 
     if (CopyMemoryMap(pmm, proc->mm) != 0)
@@ -190,9 +191,8 @@ static void ReleaseProcess(ProcessControlBlock *process)
 int ProcessFork(void)
 {
     ProcessControlBlock *process = ProcessCreate();
-    if (process == NULL) {
+    if (process == NULL)
         return -1;
-    }
 
     ProcessControlBlock *current = GetCurrentProcess();
     process->parent = current;
@@ -233,14 +233,27 @@ void ProcessExit(int exitCode)
     // Parent might in sleep.
     ProcessWakeup(current->parent);
 
-    // FIXME: remove ...
+    // FIXME: remove goto
     // Pass abandoned children to idle.
+    Acquire(&ProcessListLock);
     list_for_each(node, &ProcessList) {
-        ProcessControlBlock *child = GET_PCB_FROM_LIST_NODE(node);
-        if (child->parent == current) {
-            child->parent = idleProcess;
+        ProcessControlBlock *child;
+    BEGIN:
+        child = GET_PCB_FROM_LIST_NODE(node);
+        if (child->parent != current)
+            continue;
+        
+        if (child->state == PS_Terminated) {
+            node = list_node_next(node);
+            ReleaseProcess(child);
+            if (node != list_end())
+                goto BEGIN;
+            else 
+                break;
         }
+        child->parent = idleProcess;
     }
+    Release(&ProcessListLock);
 
     // Jump into the scheduler, never to return.
     current->state = PS_Terminated;
@@ -251,7 +264,8 @@ void ProcessExit(int exitCode)
 
 void ProcessWakeup(ProcessControlBlock *process)
 {
-    // TODO:
+    if (process->state == PS_Sleeping)
+        process->state = PS_Ready;
 }
 
 // Wait for a child process to exit and return its pid.
@@ -298,6 +312,30 @@ void ProcessYield(void)
     Schedule();
 }
 
+// Call by schedule 
+void ProcessClearTerminated(void)
+{
+    ProcessControlBlock *current = GetCurrentProcess();
+    assert(current == idleProcess);
+
+    Acquire(&ProcessListLock);
+
+    list_for_each(node, &ProcessList) {
+        ProcessControlBlock *child;
+    BEGIN:
+        child = GET_PCB_FROM_LIST_NODE(node);
+        if (child->state == PS_Terminated) {
+            node = list_node_next(node);
+            ReleaseProcess(child);
+            if (node != list_end())
+                goto BEGIN;
+            else 
+                break;
+        }
+    }
+    Release(&ProcessListLock);
+}
+
 static void SetupInitProcess(void)
 {
     extern char _binary_initcode_start[], _binary_initcode_size[];
@@ -312,11 +350,7 @@ static void SetupInitProcess(void)
         panic("cannot alloc initProcess.\n");
     }
 
-    initProcess->mm->pgdir = SetupPageDirectory();
-    if (initProcess->mm->pgdir == 0) 
-        panic("cannot alloc initProcess.\n");
-
-    InitUserVM(initProcess->mm->pgdir, _binary_initcode_start,
+    InitUserVM(initProcess->mm, _binary_initcode_start,
         (int)_binary_initcode_size);
 
     memset(initProcess->tf, 0, sizeof(*initProcess->tf));

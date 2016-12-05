@@ -26,6 +26,8 @@ void DestroyMemoryLayout(MemoryLayout *mm)
         MemoryArea *ma = GET_MEMORY_AREA_FROM_LIST_NODE(node);
         DestroyMemoryArea(ma);
     }
+    if (mm->pgdir != NULL) 
+        DestroyPageDirectory(mm->pgdir);
     kfree(mm);
 }
 
@@ -38,6 +40,7 @@ MemoryArea * MemoryAreaCreate(uint32_t start, uint32_t end, uint32_t flags)
     ma->start = start;
     ma->end = end;
     ma->flags = flags;
+    ma->layout = NULL;
     list_node_init(&ma->node);
     return ma;
 }
@@ -45,6 +48,15 @@ MemoryArea * MemoryAreaCreate(uint32_t start, uint32_t end, uint32_t flags)
 void DestroyMemoryArea(MemoryArea *ma) 
 {
     assert(ma && "nullptr exception");
+
+    if (ma->layout != NULL) {
+        uintptr_t start = ma->start;
+        size_t size = ma->end - ma->start;
+        for (size_t i = 0; i < size; ++i) {
+            uintptr_t pa = UnmapUserSpacePage(ma->layout->pgdir, start + i);
+            PhysicFreePage(VirtualAddressToPage(P2V(pa)));
+        }
+    }
     kfree(ma);
 }
 
@@ -105,6 +117,7 @@ void InsertMemoryArea(MemoryLayout *mm, MemoryArea *ma)
     assert(ma->start <= ma->end && "logic error");
 
     list_insert_with_sort(&mm->list, &ma->node, MemoryAreaCmp);
+    ma->layout = mm;
 
     /* check overlap */
     struct list_node_t *prev = list_node_prev(&ma->node);
@@ -134,13 +147,19 @@ int MemoryMap(MemoryLayout *mm, uintptr_t addr, size_t len, uint32_t flags)
     return 0;
 }
 
-static void CopyMemory(MemoryLayout *mm, MemoryArea *from, MemoryArea *to)
+static void CopyMemory(MemoryLayout *mm, uintptr_t start, size_t size)
 {
-    assert(mm && from && to && "nullptr exception");
-    assert(mm->pgdir && "please initialize pgdir first");
+    assert(mm && mm->pgdir && "please initialize pgdir first");
 
-    //PageDirectoryEntity *pgdir = mm->pgdir;
-    // TODO:
+    // FIXME: page == NULL
+    for (size_t i = 0; i < size; i += PAGE_SIZE) {
+        Page *page = PhysicAllocatePage();
+        char *mem = (char*)PageToVirtualAddress(page);
+        MapUserSpacePage(mm->pgdir, start + i, V2P(mem), PTE_W);
+        /* notice, current pgdir is current Process' pgdir, 
+            so target address is mem, source is start + i */
+        memmove(mem, (void*)(start + i), PAGE_SIZE);
+    }
 }
 
 int CopyMemoryMap(MemoryLayout *from, MemoryLayout *to)
@@ -149,19 +168,20 @@ int CopyMemoryMap(MemoryLayout *from, MemoryLayout *to)
     
     list_for_each(node, &from->list) {
         MemoryArea *ma = GET_MEMORY_AREA_FROM_LIST_NODE(node);
-        MemoryArea *n = MemoryAreaCreate(ma->start, ma->end, ma->flags);
-        if (n == NULL)
+        MemoryArea *nma = MemoryAreaCreate(ma->start, ma->end, ma->flags);
+        if (nma == NULL)
             return -1;
-        InsertMemoryArea(to, n);
-
-        CopyMemory(to, ma, n);
+        InsertMemoryArea(to, nma);
+        CopyMemory(to, ma->start, ma->end - ma->start);
     }
     return 0;
 }
 
 void ExitMemoryMap(MemoryLayout *mm)
 {
-    // TODO:
+    assert(mm && "nullptr exception");
+
+    DestroyMemoryLayout(mm);
 }
 
 void SetupVirtualMemoryManager(void)
@@ -169,16 +189,25 @@ void SetupVirtualMemoryManager(void)
     printk("++ setup virtual memory manager\n");
 }
 
+// Set kernel page directory table.
 // Load the initcode into address 0 of pgdir.
 // sz must be less than a page.
-void InitUserVM(PageDirectoryEntity *pgdir, void *start, size_t size)
+void InitUserVM(MemoryLayout *mm, void *start, size_t size)
 {
-    assert(pgdir && start && "nullptr exception");
+    assert(mm && start && "nullptr exception");
+
+    mm->pgdir = SetupPageDirectory();
+    if (mm->pgdir == 0) 
+        panic("cannot initialize user kernle vm.\n");
 
     if (size >= PAGE_SIZE)
         panic("InitUserVM: more than a page");
+
+    if (MemoryMap(mm, USER_BASE, PAGE_SIZE, 0) != 0) 
+        panic("cannot initialize user vm");
+
     Page *page = PhysicAllocatePage();
     char *mem = (char*)PageToVirtualAddress(page);
-    MapUserSpacePage(pgdir, USER_BASE, V2P(mem), PTE_W);
+    MapUserSpacePage(mm->pgdir, USER_BASE, V2P(mem), PTE_W);
     memmove(mem, start, size);
 }

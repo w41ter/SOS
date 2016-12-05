@@ -23,12 +23,13 @@ sys_fork(uint32_t arg[])
 static int
 sys_getpid(uint32_t arg[]) 
 {
-    return ProcessGetPid();
+    return ProcessGetPID();
 }
 
 static int (*syscalls[])(uint32_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
+    [SYS_getpid]            sys_getpid,
 };
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))

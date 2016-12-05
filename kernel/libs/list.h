@@ -219,9 +219,11 @@ static inline void list_insert_with_sort(
     list_for_each(tmp, list) {
         if (sort(tmp, node)) {
             list_insert(tmp, node);
-            break;
+            return ;
         }
     }
+    /* visit here, append */
+    list_append(list, node);
 }
 
 #endif /* _LIST_H_ */

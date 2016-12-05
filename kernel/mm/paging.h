@@ -72,3 +72,5 @@ PageDirectoryEntity * SetupPageDirectory(void);
 /* for map memory */
 void MapUserSpacePage(PageDirectoryEntity *pgdir, 
     uintptr_t va, uintptr_t pa, size_t flags);
+
+uintptr_t UnmapUserSpacePage(PageDirectoryEntity *pgdir, uintptr_t va);

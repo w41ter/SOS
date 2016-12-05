@@ -17,7 +17,7 @@ extern char end[];
 static void SetupDevice(void);
 static void Idle(void);
 
-void Test(void);
+extern void Test(void);
 
 int main(void) 
 {
@@ -64,13 +64,16 @@ static void SetupDevice(void)
 
 static void Idle(void)
 {
+    extern void ProcessClearTerminated(void);
+
     PopClearInterupt();     /* see spinlock.c */
     while (true) {
+        ProcessClearTerminated();
         hlt();
     }
 }
 
-// The boot page table used in entry.S and entryother.S.
+// The boot page table used in entry.S.
 // Page directories (and page tables) must start on page boundaries,
 // hence the __aligned__ attribute.
 // PTE_PS in a page directory entry enables 4Mbyte pages.

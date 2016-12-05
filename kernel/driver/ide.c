@@ -142,18 +142,21 @@ void IDEInitialize(void)
     PICEnable(IRQ_IDE2);
 }
 
-bool IsIDEDeviceValid(uint16_t ideno) {
+bool IsIDEDeviceValid(uint16_t ideno) 
+{
     return VALID_IDE(ideno);
 }
 
-size_t IDEDeviceSize(uint16_t ideno) {
+size_t IDEDeviceSize(uint16_t ideno) 
+{
     if (IsIDEDeviceValid(ideno)) {
         return IDEDevices[ideno].size;
     }
     return 0;
 }
 
-int IDEReadSectors(uint16_t ideno, uint32_t secno, void *dst, size_t nsecs) {
+int IDEReadSectors(uint16_t ideno, uint32_t secno, void *dst, size_t nsecs) 
+{
     assert(nsecs <= MAX_NSECS && VALID_IDE(ideno));
     assert(secno < MAX_DISK_NSECS && secno + nsecs <= MAX_DISK_NSECS);
     unsigned short iobase = IO_BASE(ideno), ioctrl = IO_CTRL(ideno);
