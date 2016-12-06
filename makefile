@@ -38,10 +38,10 @@ export ASFLAGS = -m32  -Wa,-divide -gstabs  # -gdwarf-2
 # FreeBSD ld wants ``elf_i386_fbsd''
 export LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
 
-VPATH = ./boot ./kernel
+VPATH = ./boot ./kernel 
 
 .PHONY: all
-all:
+all: fs.img
 	rm -rf disk.img ./boot/bootblock ./kernel/kernelcontent
 	@echo "Building bootloader"
 	make -C ./boot
@@ -68,6 +68,13 @@ disk.img: bootblock kernelcontent
 	@echo "Building success..."
 	@echo " "
 
+mkfs: mkfs.c 
+	gcc  -Werror -Wall -I./kernel -std=gnu99 -o mkfs mkfs.c
+
+fs.img: mkfs
+	@echo "Building file system maker"
+	./mkfs fs.img
+
 # try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)
 # QEMU's gdb stub command line changed in 0.11
@@ -78,27 +85,29 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 ifndef CPUS
 CPUS := 2
 endif
-QEMUOPTS = -drive file=disk.img,index=0,media=disk,format=raw -smp $(CPUS) -m 256 $(QEMUEXTRA)
+QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw \
+	-drive file=disk.img,index=0,media=disk,format=raw \
+	-smp $(CPUS) -m 256 $(QEMUEXTRA) \
 
-qemu: disk.img
+qemu: fs.img disk.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)
 
-qemu-nox: disk.img
+qemu-nox: fs.img disk.img
 	$(QEMU) -nographic $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: disk.img .gdbinit
+qemu-gdb: fs.img disk.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
 
-qemu-nox-gdb: disk.img .gdbinit
+qemu-nox-gdb: fs.img disk.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
 .PHONY: clean
 clean: 
-	rm -f disk.img .gdbinit 
+	rm -f disk.img fs.img mkfs .gdbinit mkfs.o 
 	make -C ./kernel clean
 	make -C ./boot clean

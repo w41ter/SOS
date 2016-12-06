@@ -49,7 +49,6 @@ void Schedule(void)
                 next = p; 
                 counter = p->counter;
             }
-            //printk("pid=%d name=%s counter=%d\n", p->pid, p->name, p->counter);
         }
 
         if (next)   
