@@ -125,13 +125,32 @@ int strlen(const char *src)
 // Like strncpy but guaranteed to NUL-terminate.
 char* safestrcpy(char *s, const char *t, int n)
 {
-  char *os;
+    char *os;
 
-  os = s;
-  if(n <= 0)
+    os = s;
+    if(n <= 0)
+        return os;
+    while(--n > 0 && (*s++ = *t++) != 0)
+        ;
+    *s = 0;
     return os;
-  while(--n > 0 && (*s++ = *t++) != 0)
-    ;
-  *s = 0;
-  return os;
+}
+
+int find_last_of(const char *src, char c)
+{
+    size_t pos = -1;
+    for (const char *p = src; *p; ++p) {
+        if (*p == c)
+            pos = p - src;
+    }
+    return pos;
+}
+
+int find_first_of(const char *src, char c)
+{
+    for (const char *p = src; *p; ++p) {
+        if (*p == c)
+            return p-src;
+    }
+    return -1;
 }

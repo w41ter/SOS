@@ -142,7 +142,7 @@ uint32_t TryAllocateBlockWithInode(uint32_t *addr)
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
-void InodeAppend(uint32_t inum, void *p, size_t n)
+void InodeAppendData(uint32_t inum, void *p, size_t n)
 {
     uint8_t buf[BSIZE];
     uint32_t indirect[NINDIRECT];
@@ -230,12 +230,12 @@ void WriteRootEntry(void)
     bzero(&entry, sizeof(entry));
     entry.inum = xshort(rootino);
     strcpy(entry.name, ".");
-    InodeAppend(rootino, &entry, sizeof(entry));
+    InodeAppendData(rootino, &entry, sizeof(entry));
 
     bzero(&entry, sizeof(entry));
     entry.inum = xshort(rootino);
     strcpy(entry.name, "..");
-    InodeAppend(rootino, &entry, sizeof(entry));
+    InodeAppendData(rootino, &entry, sizeof(entry));
 }
 
 void SetBlockBitmap(uint32_t used)
@@ -277,11 +277,11 @@ void WriteFiles(int argc, char **argv)
         bzero(&entry, sizeof(entry));
         entry.inum = xshort(inum);
         strncpy(entry.name, argv[i], DIRSIZ);
-        InodeAppend(ROOTINO, &entry, sizeof(entry));
+        InodeAppendData(ROOTINO, &entry, sizeof(entry));
 
         size_t size = 0;
         while((size = fread(buf, 1, sizeof(buf), file)) != 0)
-            InodeAppend(inum, buf, size);
+            InodeAppendData(inum, buf, size);
 
         fclose(file);
     }

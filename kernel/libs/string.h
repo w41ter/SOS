@@ -15,4 +15,7 @@ char *strncpy(char *dest, const char *src, uint32_t len);
 char* safestrcpy(char *s, const char *t, int n);
 int strlen(const char *src);
 
+int find_last_of(const char *src, char c);
+int find_first_of(const char *src, char c);
+
 #endif  // _STRING_H_

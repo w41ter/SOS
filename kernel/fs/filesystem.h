@@ -53,3 +53,12 @@ typedef struct DiskFileEntry {
 } DiskFileEntry;
 
 void SetupFileSystem(void);
+
+uint32_t InodeByFileName(char *filename);
+uint32_t InodeCreate(char *filename);
+uint32_t ReleaseInode(uint32_t inum);
+void ReadInode(uint32_t inum, DiskInode *inode);
+void WriteInode(uint32_t inum, DiskInode *inode);
+uint32_t InodeTruncate(uint32_t inum, uint32_t offset);
+uint32_t InodeRead(uint32_t inum, uint32_t offset, void *buf, size_t size);
+uint32_t InodeAppend(uint32_t inum, uint32_t offset, void *buf, size_t size);
